@@ -1,0 +1,10 @@
+build/
+outputs/
+runtime/
+third_party/
+user/
+logs/
+settings.json*
+*.log
+__pycache__/
+*.py[cod]

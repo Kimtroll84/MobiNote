@@ -1,0 +1,126 @@
+{
+  "policy": "보류 취소: 4개 레시피는 catalog.json으로 복원됨. 이 파일은 과거 보류 기록이며 실행 중인 보류 목록이 아님. 시간바는 동명 중 최단 시간 기준 유지.",
+  "recipes": [
+    {
+      "name": "은합금괴",
+      "responseOrdinal": 2,
+      "produced": 3,
+      "ingredients": [
+        {
+          "name": "마력 깃든 돌",
+          "required": 12
+        },
+        {
+          "name": "은 광석",
+          "required": 20
+        },
+        {
+          "name": "석탄",
+          "required": 16
+        }
+      ],
+      "allReportedOwnedZero": true,
+      "id": "materials-ec9a30abfb259e",
+      "kind": "materials",
+      "path": [
+        "금속 가공"
+      ],
+      "facility": "금속 가공 시설",
+      "durationSeconds": 21600,
+      "durationSource": "user-csv-2026-11-03",
+      "deferredReason": "동명 레시피 중 장시간 가공: 사용자 요청으로 보류",
+      "activeRecipeId": "materials-a009d8bc4bf1f5"
+    },
+    {
+      "name": "최상급 목재",
+      "responseOrdinal": 2,
+      "produced": 3,
+      "ingredients": [
+        {
+          "name": "단단한 통나무",
+          "required": 4
+        },
+        {
+          "name": "최상급 통나무",
+          "required": 20
+        },
+        {
+          "name": "나무 진액",
+          "required": 16
+        }
+      ],
+      "allReportedOwnedZero": true,
+      "id": "materials-2fcdc24e744353",
+      "kind": "materials",
+      "path": [
+        "목재 가공"
+      ],
+      "facility": "목재 가공 시설",
+      "durationSeconds": 21600,
+      "durationSource": "user-csv-2026-11-03",
+      "deferredReason": "동명 레시피 중 장시간 가공: 사용자 요청으로 보류",
+      "activeRecipeId": "materials-8362716d2f9c86"
+    },
+    {
+      "name": "최상급 옷감",
+      "responseOrdinal": 2,
+      "produced": 3,
+      "ingredients": [
+        {
+          "name": "두꺼운 양털",
+          "required": 40
+        },
+        {
+          "name": "최상급 양털",
+          "required": 20
+        },
+        {
+          "name": "양털",
+          "required": 16
+        }
+      ],
+      "allReportedOwnedZero": true,
+      "id": "materials-f89e36a31b4713",
+      "kind": "materials",
+      "path": [
+        "옷감 가공"
+      ],
+      "facility": "옷감 가공 시설",
+      "durationSeconds": 21600,
+      "durationSource": "user-csv-2026-11-03",
+      "deferredReason": "동명 레시피 중 장시간 가공: 사용자 요청으로 보류",
+      "activeRecipeId": "materials-84889d3a0eab8e"
+    },
+    {
+      "name": "최상급 가죽",
+      "responseOrdinal": 2,
+      "produced": 3,
+      "ingredients": [
+        {
+          "name": "반짝이는 이끼",
+          "required": 4
+        },
+        {
+          "name": "최상급 생가죽",
+          "required": 20
+        },
+        {
+          "name": "타닌 가루",
+          "required": 16
+        }
+      ],
+      "allReportedOwnedZero": true,
+      "id": "materials-a8bd1ffbed39a7",
+      "kind": "materials",
+      "path": [
+        "가죽 가공"
+      ],
+      "facility": "가죽 가공 시설",
+      "durationSeconds": 21600,
+      "durationSource": "user-csv-2026-11-03",
+      "deferredReason": "동명 레시피 중 장시간 가공: 사용자 요청으로 보류",
+      "activeRecipeId": "materials-4ac29acc1fa024"
+    }
+  ],
+  "status": "restored"
+}
