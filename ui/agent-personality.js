@@ -6,7 +6,7 @@ function objectForm(name){
 function preparationSpeech(stage,casual=false){
   const kind=stage.taskKind,item=stage.item||'',amount=stage.amount;
   if(kind==='queue')return casual?'대기줄 작업을 준비하고 있어!':'대기줄의 작업을 준비하고 있어요.';
-  const action={gather:'채집',craft:'제작',materials:'가공',cycle:'가공 SET',register:'가공 등록',collect:'완료품 수령'}[kind];
+  const action={gather:'채집',craft:'제작',materials:'가공',cycle:'반복 가공',register:'가공 등록',collect:'완료품 수령'}[kind];
   if(!action)return null;
   const quantity=amount==null?'':kind==='gather'&&amount===0?' 무한':` ${Number(amount).toLocaleString('ko-KR')}${kind==='gather'?'개':'회'}`;
   return casual?`${item}${quantity} ${action}, 준비하고 있어!`:`${item}${quantity} ${action}을 준비하고 있어요.`;

@@ -140,3 +140,16 @@
 /* Gatherable shortages remain selectable in the one-time registration picker. */
 .product-chip.needs-gather,.product-chip.selected.needs-gather{background:#fff1d6;border-color:#c79845;color:#77501d}
 .product-chip.needs-gather:disabled{opacity:.5}
+
+/* Facility plan: main pane only; existing queue stays in place. */
+.facility-overview{grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.facility-card{cursor:default}.facility-card-heading{width:100%;border:0;cursor:pointer;min-height:32px;padding:5px 8px;background:#e8f0dc;color:var(--ink)}
+.facility-card-heading h2{font-size:13px;line-height:19px}.facility-counts{font-size:10px;color:#6c8153}.facility-slots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;padding:7px}
+.facility-slot{height:27px;min-width:0;padding:3px 5px;display:flex;align-items:center;gap:3px;font-size:12px;border-radius:6px;background:#f7f9f1;overflow:hidden}
+.facility-slot span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;flex:1}.facility-slot small{font-size:10px;flex:none}.facility-slot.complete{background:#e1edc9;color:#607e34}.facility-slot.empty{border-style:dashed;justify-content:center;color:#9aaa85}.facility-slot.empty span{flex:none;font-size:18px}.facility-slot.planned{border-style:dashed;border-color:#88a762;background:#f0f6e5}.facility-slot.needs-gather{background:#fff1d6;border-color:#c79845;color:#77501d}
+.single-facility .facility-slots{grid-template-columns:1fr}.single-facility .facility-slot{height:43px;font-size:14px}.single-facility .facility-slot small{font-size:12px}
+.facility-top-actions{display:flex;gap:6px;margin-bottom:14px}.facility-top-actions button{flex:1;min-width:0;padding:9px 3px;font-size:12px;white-space:nowrap}
+.facility-plan-actions{display:flex;gap:6px;margin-top:14px}.execute-with-count{display:flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;flex:1;min-width:0}.execute-with-count button{border:0;border-radius:0;flex:1;padding:10px 3px;font-size:12px;white-space:nowrap}.execute-with-count input{width:37px;min-width:0;padding:5px 1px;text-align:center;border:0;border-left:1px solid var(--line);border-radius:0;font-size:13px}.execute-with-count span{padding-right:5px;font-size:11px;color:var(--muted)}
+#picker.facility-picker{position:fixed;margin:0;max-width:calc(100vw - 24px);padding:0;max-height:calc(100vh - 30px);overflow:hidden;box-shadow:0 12px 40px #27392635;z-index:8}
+.facility-picker .dialog-title{padding:12px 14px;background:#eef4e5;cursor:move;touch-action:none;margin:0}.facility-picker .dialog-title h2{font-size:16px}.facility-picker #picker-facility{width:calc(100% - 28px);margin:12px 14px;padding:8px}.facility-picker #picker-list{display:flex;flex-wrap:wrap;gap:6px;align-content:flex-start;padding:0 14px 14px;max-height:340px;overflow-y:auto;scrollbar-gutter:stable}.facility-picker .product-chip small{font-size:11px;opacity:.7}.product-chip.unavailable{background:#faeeeb;color:#a47770;border-color:#e5cdc7}
+#settings .setting-row:has(#strict-order) label{font-size:12px}#processing-refill{width:45px;text-align:center}

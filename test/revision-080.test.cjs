@@ -76,7 +76,7 @@ test('all processing recipes are active, while time bars use the shortest same-n
 test('recipe 2 IDs in jobs, presets and facility records remain selected after restart', () => {
   const second=M.catalog.materials.find(r=>r.name==='은합금괴'&&r.durationSeconds===21600);
   const task={kind:'materials',name:second.name,recipeId:second.id,count:4,completed:2,status:'stopped'};
-  const cycle={kind:'cycle',facility:second.facility,pattern:[second.id],completed:1,nextIndex:2};
+  const cycle={kind:'cycle',planMode:true,facility:second.facility,pattern:[second.id],completed:1,nextIndex:2};
   const e=new Engine(new FakeCli(),{queue:[task],favorites:['materials:'+second.id],presets:[{id:'p',name:'재료표2',tasks:[task,cycle]}],ledger:{[second.facility]:[{name:second.name,recipeId:second.id}]}});
   assert.equal(e.queue[0].recipeId,second.id);assert.equal(e.queue[0].completed,2);assert.equal(e.preferences.presets[0].tasks[0].recipeId,second.id);
   assert.deepEqual(e.preferences.presets[0].tasks[1].pattern,[second.id]);assert.equal(e.ledger[second.facility][0].recipeId,second.id);

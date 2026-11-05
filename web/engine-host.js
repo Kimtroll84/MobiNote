@@ -17,6 +17,7 @@
  const ready=(async()=>{
   const startup=await native.call('startup');transport=new NativeTransport(startup.preferences.cliPath);appInfo=startup.appInfo;
   engine=new Engine(transport,startup.preferences);
+  if(engine.legacyExclusions.removedTasks){await native.call('backup-settings');await native.call('persist-state',{persistent:engine.persistent(),state:engine.snapshot()});}
   engine.on('change',state=>{native.emit('state',state);native.call('persist-state',{persistent:engine.persistent(),state}).catch(notifyError);});
   engine.on('diagnostic',data=>native.call('diagnostic',data).catch(notifyError));
   engine.on('finished',async result=>{
@@ -40,7 +41,7 @@
  async function invoke(command,...args){
   await ready;const input=args[0];
   switch(command){
-   case 'bootstrap':return {state:engine.snapshot(),catalog:catalog(),cliPath:transport.file,smoke:false,agentVisible,appInfo};
+   case 'bootstrap':return {state:engine.snapshot(),catalog:catalog(),cliPath:transport.file,smoke:false,agentVisible,appInfo,migrationNotice:D.exclusionMessage(engine.legacyExclusions)};
    case 'connect':await engine.connect();return {state:engine.snapshot(),catalog:catalog()};
    case 'add':return engine.add(input);
    case 'preview':return engine.preview(input);
@@ -58,10 +59,11 @@
    case 'choose-cli':idle();return native.call('choose-cli');
    case 'close-app':if(engine.running)throw new Error('작업을 중단한 뒤 닫아 주세요.');clearInterval(pollingTimer);await native.call('close-app');return;
    case 'settings':{
-    idle();const n=Number(input.limit),minutes=Number(input.cycleMinutes||0);
+    idle();const refill=Number(input.processingRefillRounds??2);if(!Number.isSafeInteger(refill)||refill<1||refill>999)throw new Error('재료 준비 분량은 1~999회분으로 입력해 주세요.');
+    const n=Number(input.limit),minutes=Number(input.cycleMinutes||0);
     if(!Number.isInteger(n)||n<1||n>100||!Number.isFinite(minutes)||minutes<0||(input.cycleTimeEnabled&&minutes<=0))throw new Error('가방 공간 기준과 SET 반복 시간을 확인해 주세요.');
     if(input.cliPath&&input.cliPath!==transport.file){await transport.setPath(input.cliPath);engine.connected=false;engine.wingsStale=true;}
-    Object.assign(engine.preferences,{cliPath:transport.file,bagCheck:input.bagCheck===true,limit:n,fantasyMembership:input.fantasyMembership!==false,retryInterrupted:input.retryInterrupted===true,cycleTimeEnabled:input.cycleTimeEnabled===true,cycleMinutes:minutes,agentSeparate:input.agentSeparate!==false,agentOnTop:input.agentOnTop!==false,agentCharacter:input.agentCharacter==='B'?'B':'A'});
+    Object.assign(engine.preferences,{cliPath:transport.file,processingRefillRounds:refill,strictOrder:input.strictOrder===true,bagCheck:input.bagCheck===true,limit:n,fantasyMembership:input.fantasyMembership!==false,retryInterrupted:input.retryInterrupted===true,cycleTimeEnabled:input.cycleTimeEnabled===true,cycleMinutes:minutes,agentSeparate:input.agentSeparate!==false,agentOnTop:input.agentOnTop!==false,agentCharacter:input.agentCharacter==='B'?'B':'A'});
     engine.publish();if(await native.call('agent-visible'))await showAgent();return;
    }
    case 'favorite':{
@@ -81,7 +83,7 @@
     let file;try{file=JSON.parse(text.replace(/^\uFEFF/,''));}catch{throw new Error('데이터 파일을 읽을 수 없어요. JSON 파일을 확인해 주세요.');}
     const data=D.importData(file,engine.db);
     if(!(await native.call('confirm-import',{favorites:data.favorites.length,presets:data.presets.length})))return false;
-    idle();await native.call('backup-settings');Object.assign(engine.preferences,data);engine.publish();return true;
+    idle();await native.call('backup-settings');const {legacyExclusions,...restored}=data;Object.assign(engine.preferences,restored);engine.publish();return {imported:true,migrationNotice:D.exclusionMessage(legacyExclusions)};
    }
    default:throw new Error('지원하지 않는 요청입니다.');
   }

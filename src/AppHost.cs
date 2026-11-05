@@ -51,7 +51,7 @@ namespace MobiNote {
   [DllImport("user32.dll")]private static extern IntPtr SendMessage(IntPtr hwnd,int msg,IntPtr wparam,IntPtr lparam);
   internal AppHost(string folder){
    root=folder;settingsFile=Path.Combine(root,"settings.json");Directory.CreateDirectory(Path.Combine(root,"user"));
-   Text="모비노트 0.9.6 · WebView2";StartPosition=FormStartPosition.CenterScreen;ClientSize=new Size(920,920);
+   Text="모비노트 0.9.7 · WebView2";StartPosition=FormStartPosition.CenterScreen;ClientSize=new Size(920,920);
    MinimumSize=new Size(Width,640);MaximumSize=new Size(Width,65535);MaximizeBox=false;AutoScaleMode=AutoScaleMode.Dpi;BackColor=ColorTranslator.FromHtml("#f6f9f1");
    Icon=new Icon(Path.Combine(root,"content/ui/assets/MobiNote_A.ico"));mainView.Dock=DockStyle.Fill;Controls.Add(mainView);
    positionTimer.Tick+=(sender,e)=>{positionTimer.Stop();if(agent!=null&&!agent.IsDisposed&&agent.Visible)Post(mainView,"agent-position",new{x=agent.Left,y=agent.Top});};

@@ -2,7 +2,7 @@
 const {test}=require('node:test'),assert=require('node:assert/strict');
 const D=require('../lib/data-management.cjs'),{fixtureDb}=require('./fake-cli.cjs');
 const db=fixtureDb();
-function preferences(){return {favorites:['gather:광석','materials:A'],presets:[{id:'p1',name:'테스트',tasks:[{kind:'craft',name:'키트',count:2,completed:1,status:'stopped'},{kind:'register',facility:'시설',pattern:['A','B']},{kind:'cycle',facility:'시설',pattern:['A','A','B'],repeatCount:3,gatherBatches:10}]}],queue:[{name:'제외할 대기줄'}],agentCharacter:'B',cliPath:'private'};}
+function preferences(){return {favorites:['gather:광석','materials:A'],presets:[{id:'p1',name:'테스트',tasks:[{kind:'craft',name:'키트',count:2,completed:1,status:'stopped'},{kind:'register',facility:'시설',pattern:['A','B']},{kind:'cycle',planMode:true,facility:'시설',pattern:['A','A','B'],repeatCount:3,gatherBatches:10}]}],queue:[{name:'제외할 대기줄'}],agentCharacter:'B',cliPath:'private'};}
 test('backup round trip preserves ordered favorites and preset task settings, excluding queue and runtime fields',()=>{
  const source=preferences(),file=D.exportData(source,db),restored=D.importData(JSON.parse(JSON.stringify(file)),db);
  assert.deepEqual(Object.keys(file).sort(),['exportedAt','favorites','format','presets','version']);
