@@ -14,7 +14,7 @@ function setCatalog(value) { db = value;byId = new Map([...db.gather, ...db.craf
 let dragId = null, presetDrag = null, presetDraft = null, activePreset = null, pickerSelection = [], pickerMode = 'plan', pickerSlots = 0, slotSelection = [];
 const expanded = new Set(), sets = new Map(), repeatCounts = new Map(), gatherBatchCounts = new Map();
 let materialView = null;
-let facilityPlan=[], immediateRepeats=1, queueRepeats=1, pickerNativeOpen=false;
+let facilityPlan=[], immediateRepeats=1, queueRepeats=1, pickerNativeOpen=false, manualMaterialsDraft=[], manualMaterialSelection=new Set();
 const tabSelections=new Map();
 let presetBaseline = null, settingsBaseline = null, pickerBaseline = [], pickerFacility = '', decision = null, navigating = false;
 function presetValue(draft) {
@@ -26,7 +26,7 @@ function presetValue(draft) {
   }) };
 }
 function presetDirty() { return JSON.stringify(presetValue(presetDraft)) !== JSON.stringify(presetValue(presetBaseline)); }
-function settingsValue() { return { cliPath:$('cli-path').value,processingRefillRounds:$('processing-refill').value,strictOrder:$('strict-order').checked, bagCheck:$('bag-check').checked, limit:$('bag-limit').value, fantasyMembership:$('fantasy-membership').checked, retryInterrupted:$('retry-interrupted').checked, cycleTimeEnabled:$('cycle-time-enabled').checked, cycleMinutes:$('cycle-minutes').value, agentCharacter:$('agent-character').value, agentSeparate:$('agent-separate').checked, agentOnTop:$('agent-on-top').checked }; }
+function settingsValue() { return { cliPath:$('cli-path').value,processingRefillRounds:$('processing-refill').value,strictOrder:$('strict-order').checked,manualMaterialsEnabled:$('manual-materials-enabled').checked,manualMaterials:[...manualMaterialsDraft], bagCheck:$('bag-check').checked, limit:$('bag-limit').value, fantasyMembership:$('fantasy-membership').checked, retryInterrupted:$('retry-interrupted').checked, cycleTimeEnabled:$('cycle-time-enabled').checked, cycleMinutes:$('cycle-minutes').value, agentCharacter:$('agent-character').value, agentSeparate:$('agent-separate').checked, agentOnTop:$('agent-on-top').checked }; }
 function settingsDirty() { return $('settings').open && JSON.stringify(settingsValue()) !== JSON.stringify(settingsBaseline); }
 function pickerDirty() { return $('picker').open && pickerMode === 'set' && JSON.stringify([...pickerSelection]) !== JSON.stringify(pickerBaseline); }
 function updateSaveButtons() {
@@ -200,7 +200,7 @@ function capFor(r, amount = quantity) {
 function tableRows(r) {
   const batches = quantity;
   return r.ingredients.map(i => { const stock = state.stock?.[i.name], n = i.required * batches, missing = state.stock ? Math.max(0, n - (stock || 0)) : null;
-    return `<tr><td>${escape(i.name)}<small>1회 ${i.required}개 · ${state.gatherables.includes(i.name) ? '채집' : '드랍 및 제작, 가공'}</small></td><td>${stock == null && !state.stock ? '—' : fmt(stock)}</td><td>${fmt(n)}</td><td class="${missing ? 'missing' : ''}">${missing == null ? '—' : fmt(missing)}</td></tr>`;
+    return `<tr><td>${escape(i.name)}<small>1회 ${i.required}개 · ${state.preferences.manualMaterialsEnabled&&state.preferences.manualMaterials.includes(i.name)?'직접 구매':state.gatherables.includes(i.name) ? '채집' : '드랍 및 제작, 가공'}</small></td><td>${stock == null && !state.stock ? '—' : fmt(stock)}</td><td>${fmt(n)}</td><td class="${missing ? 'missing' : ''}">${missing == null ? '—' : fmt(missing)}</td></tr>`;
   }).join('');
 }
 function estimateView(r) {
@@ -335,8 +335,8 @@ function renderQueue() {
   if(state.running)dragId=null;
   const statuses = { waiting: '대기', running: '실행 중', done: '완료', stopped: '중단됨', skipped: '건너뜀', held:'시설 확인 대기', error: '오류' };
   const markup = t => {
-    const products = t.kind === 'cycle' ? groupedProducts(t.pattern).map(({id,count,recipe:r})=>({name:r.name+(count>1?' ×'+count:''),amount:t.repeatCount?`${t.productCompleted?.[id]||0}/${t.repeatCount*count}회`:'무한 반복'})) : t.kind==='register' ? groupedProducts(t.pattern).map(({recipe:r,count})=>({name:r.name,amount:`${count}건 등록`})) : [{ name: queueName(t), amount: t.kind === 'gather' && t.count === 0 ? '무한' : t.kind === 'gather' ? `${t.completed ? t.completed + '/' : ''}${t.count}개` : ['craft','materials'].includes(t.kind) ? `${t.completed ? t.completed + '/' : ''}${t.count}회` : t.reregister ? '수령·재등록' : '수령' }];
-    return `<div class="queue-card ${t.kind === 'cycle' ? 'cycle' : ''} ${t.insufficient ? 'shortage' : ''} ${t.status}" data-task="${t.id}" draggable="${(t.kind !== 'cycle'||state.preferences.strictOrder) && !state.running}" title="${escape(t.message || '')}"><div class="q-lines">${products.map(p => `<div class="q-line"><strong>${escape(p.name)}</strong><span>${escape(p.amount)}</span></div>`).join('')}${t.insufficient ? `<span class="q-meta">${t.skipReason ? escape(t.skipReason) : t.possible == null ? t.message || '재료 부족' : `생산 가능 ${fmt(t.possible)}${t.kind === 'gather' ? '개' : '회'}${t.status === 'skipped' ? ' · 건너뜀' : ''}`}</span>` : t.status !== 'waiting' ? `<span class="q-meta">${statuses[t.status] || t.status}${t.kind === 'cycle' && t.completed ? ' · ' + t.completed + '회 수령' : ''}</span>` : ''}</div><div class="q-controls"><span class="q-cost">${t.wings == null ? t.kind === 'cycle' && !t.repeatCount ? '∞ 날개' : '날개 —' : `${fmt(t.wings)}날개`}</span><button data-action="remove" ${state.running ? 'disabled' : ''}>삭제</button></div></div>`;
+    const products = t.kind === 'cycle' ? groupedProducts(t.pattern).map(({id,count,recipe:r})=>({name:r.name+(count>1?' ×'+count:''),amount:t.repeatCount?`${(t.planMode&&t.repeatCount?t.productRegistered?.[id]:t.productCompleted?.[id])||0}/${t.repeatCount*count}회`:'무한 반복'})) : t.kind==='register' ? groupedProducts(t.pattern).map(({recipe:r,count})=>({name:r.name,amount:`${count}건 등록`})) : [{ name: queueName(t), amount: t.kind === 'gather' && t.count === 0 ? '무한' : t.kind === 'gather' ? `${t.completed ? t.completed + '/' : ''}${t.count}개` : ['craft','materials'].includes(t.kind) ? `${t.completed ? t.completed + '/' : ''}${t.count}회` : t.reregister ? '수령·재등록' : '수령' }];
+    return `<div class="queue-card ${t.kind === 'cycle' ? 'cycle' : ''} ${t.insufficient ? 'shortage' : ''} ${t.status}" data-task="${t.id}" draggable="${(t.kind !== 'cycle'||state.preferences.strictOrder) && !state.running}" title="${escape(t.message || '')}"><div class="q-lines">${products.map(p => `<div class="q-line"><strong>${escape(p.name)}</strong><span>${escape(p.amount)}</span></div>`).join('')}${t.insufficient ? `<span class="q-meta">${t.skipReason ? escape(t.skipReason) : t.possible == null ? t.message || '재료 부족' : `생산 가능 ${fmt(t.possible)}${t.kind === 'gather' ? '개' : '회'}${t.status === 'skipped' ? ' · 건너뜀' : ''}`}</span>` : t.status !== 'waiting' ? `<span class="q-meta">${statuses[t.status] || t.status}${t.kind === 'cycle' && t.completed ? ' · ' + (t.finalRegistration?(t.nextIndex||0)+'회 등록':t.completed+'회 수령') : ''}</span>` : ''}</div><div class="q-controls"><span class="q-cost">${t.wings == null ? t.kind === 'cycle' && !t.repeatCount ? '∞ 날개' : '날개 —' : `${fmt(t.wings)}날개`}</span><button data-action="remove" ${state.running ? 'disabled' : ''}>삭제</button></div></div>`;
   };
   setMarkup($('cycle-list'), state.preferences.strictOrder?'':state.queue.filter(t => t.kind === 'cycle').map(markup).join(''));
   setMarkup($('queue-list'), state.queue.filter(t => state.preferences.strictOrder||t.kind !== 'cycle').map(markup).join('') || '<div class="queue-empty">작업을 담아 주세요.</div>');
@@ -443,7 +443,7 @@ $('picker').oncancel=e=>{e.preventDefault();perform(closePicker);};
 $('settings-close').onclick=()=>perform(closeSettings);
 $('settings').oncancel=e=>{e.preventDefault();perform(closeSettings);};
 $ ('settings').querySelector('form').onsubmit=e=>{e.preventDefault();if(settingsDirty())perform(saveSettings);};
-$('settings-open').onclick = () => { $('processing-refill').value=state.preferences.processingRefillRounds??2;$('strict-order').checked=state.preferences.strictOrder===true; $('cli-path').value = cliPath;$('bag-check').checked = state.preferences.bagCheck;$('bag-limit').value = state.preferences.limit;$('fantasy-membership').checked = state.preferences.fantasyMembership !== false;$('cycle-time-enabled').checked = state.preferences.cycleTimeEnabled;$('cycle-minutes').value = state.preferences.cycleMinutes || '';$('cycle-minutes').disabled = !$('cycle-time-enabled').checked;$('agent-character').value=state.preferences.agentCharacter==='B'?'B':'A';$('agent-separate').checked=state.preferences.agentSeparate!==false;$('agent-on-top').checked=state.preferences.agentOnTop!==false;$('agent-on-top').disabled=!$('agent-separate').checked;settingsBaseline=settingsValue();$('settings').showModal();updateSaveButtons(); };
+$('settings-open').onclick = () => {manualMaterialsDraft=[...(state.preferences.manualMaterials||['마력 깃든 돌','반짝이는 이끼'])];$('manual-materials-enabled').checked=state.preferences.manualMaterialsEnabled===true;updateManualMaterialsCount(); $('processing-refill').value=state.preferences.processingRefillRounds??2;$('strict-order').checked=state.preferences.strictOrder===true; $('cli-path').value = cliPath;$('bag-check').checked = state.preferences.bagCheck;$('bag-limit').value = state.preferences.limit;$('fantasy-membership').checked = state.preferences.fantasyMembership !== false;$('cycle-time-enabled').checked = state.preferences.cycleTimeEnabled;$('cycle-minutes').value = state.preferences.cycleMinutes || '';$('cycle-minutes').disabled = !$('cycle-time-enabled').checked;$('agent-character').value=state.preferences.agentCharacter==='B'?'B':'A';$('agent-separate').checked=state.preferences.agentSeparate!==false;$('agent-on-top').checked=state.preferences.agentOnTop!==false;$('agent-on-top').disabled=!$('agent-separate').checked;settingsBaseline=settingsValue();$('settings').showModal();updateSaveButtons(); };
 $('agent-separate').onchange=()=>{$('agent-on-top').disabled=!$('agent-separate').checked;updateSaveButtons();};
 $('cycle-time-enabled').onchange = () => { $('cycle-minutes').disabled = !$('cycle-time-enabled').checked;updateSaveButtons(); };
 $('choose-cli').onclick = () => perform(async () => { const file = await api('choose-cli');if (file) { $('cli-path').value = file;updateSaveButtons(); } });
@@ -452,7 +452,7 @@ retryRow.innerHTML='<label><input id="retry-interrupted" type="checkbox"> 행동
 $('fantasy-membership').closest('.setting-row').before(retryRow);
 bindHelpPopover($('retry-interrupted-help'),$('retry-interrupted-popover'));
 $('settings-open').addEventListener('click',()=>{
-  $('retry-interrupted').checked=state.preferences.retryInterrupted===true;settingsBaseline=settingsValue();updateSaveButtons();
+  $('retry-interrupted').checked=state.preferences.retryInterrupted!==false;settingsBaseline=settingsValue();updateSaveButtons();
 });
 const dataSection=document.createElement('section');dataSection.className='data-management';
 dataSection.innerHTML='<h3>데이터 관리</h3><p class="muted">즐겨찾기와 작업 프리셋을 저장하거나 복원해요.</p><div class="run-actions"><button type="button" id="data-export">내보내기</button><button type="button" id="data-import">불러오기</button></div>';
@@ -548,3 +548,16 @@ function showMigrationNotice(message){
  let dialog=$('migration-notice');if(!dialog){dialog=document.createElement('dialog');dialog.id='migration-notice';dialog.innerHTML='<h2>이전 반복 작업 제외 안내</h2><p></p><div class="dialog-actions"><button class="primary">확인</button></div>';document.body.append(dialog);dialog.querySelector('button').onclick=()=>dialog.close();}
  dialog.querySelector('p').textContent=message;if(!dialog.open)dialog.showModal();
 }
+
+function updateManualMaterialsCount(){setText($('choose-manual-materials'),`재료 선택 (${manualMaterialsDraft.length})`);}
+function renderManualMaterialSelection(){
+ const query=$('manual-material-search').value.trim(),names=db.gather.map(r=>r.name).filter(n=>!query||n.includes(query));
+ $('manual-material-list').innerHTML=names.map(name=>`<label><input type="checkbox" data-manual-name="${escape(name)}" ${manualMaterialSelection.has(name)?'checked':''}>${escape(name)}</label>`).join('');
+ for(const input of $('manual-material-list').querySelectorAll('input'))input.onchange=()=>{input.checked?manualMaterialSelection.add(input.dataset.manualName):manualMaterialSelection.delete(input.dataset.manualName);refreshManualMaterialSave();};refreshManualMaterialSave();
+}
+function refreshManualMaterialSave(){const selected=[...manualMaterialSelection].sort(),original=[...manualMaterialsDraft].sort();$('manual-material-apply').disabled=JSON.stringify(selected)===JSON.stringify(original);}
+$('choose-manual-materials').onclick=()=>{manualMaterialSelection=new Set(manualMaterialsDraft);$('manual-material-search').value='';renderManualMaterialSelection();$('manual-material-picker').showModal();};
+$('manual-material-search').oninput=renderManualMaterialSelection;
+$('manual-material-apply').onclick=()=>{manualMaterialsDraft=[...manualMaterialSelection];updateManualMaterialsCount();$('manual-material-picker').close();updateSaveButtons();};
+async function closeManualMaterialPicker(){if(await guardEdit(()=>!$('manual-material-apply').disabled,()=>{manualMaterialsDraft=[...manualMaterialSelection];updateManualMaterialsCount();updateSaveButtons();},()=>{},'직접 준비할 재료 선택'))$('manual-material-picker').close();}
+$('manual-material-close').onclick=()=>perform(closeManualMaterialPicker);$('manual-material-picker').oncancel=e=>{e.preventDefault();perform(closeManualMaterialPicker);};

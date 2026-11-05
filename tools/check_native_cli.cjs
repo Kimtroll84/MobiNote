@@ -17,7 +17,7 @@ const root=path.resolve(__dirname,'..'),folder=path.resolve(process.argv[2]),fix
   await invoke('add',{kind:'materials',name:material.name,recipeId:material.id,count:2});
   await invoke('run');let state;
   for(let i=0;i<150;i++){state=(await invoke('bootstrap')).state;if(!state.running)break;await delay(100);}
-  assert.equal(state.terminal.type,'done',JSON.stringify(state.terminal));assert.deepEqual(state.queue.map(t=>t.completed),[2,2]);
+  assert.equal(state.terminal.type,'done',JSON.stringify(state.terminal));assert.deepEqual(state.queue.map(t=>t.completed),[2,2]);assert.equal(state.queue[1].finalRegistration,true);
   const responseLog=fs.readFileSync(path.join(folder,'diagnostics.log'),'utf8').trim().split('\n').map(JSON.parse);
   assert.ok(responseLog.some(r=>r.event==='craft-cli-response'&&r.request.displayName===craft.name));
   await invoke('clear');
@@ -28,7 +28,7 @@ const root=path.resolve(__dirname,'..'),folder=path.resolve(process.argv[2]),fix
   for(let i=0;i<100;i++){state=(await invoke('bootstrap')).state;if(!state.running)break;await delay(100);}
   assert.equal(state.running,false);assert.equal(state.terminal.type,'stopped');assert.ok(fs.existsSync(path.join(fixture,'stop.signal')));
   const image=await client.js("MobiNative.call('capture-main')");fs.copyFileSync(image,path.join(root,'runtime/webview-main.png'));
-  console.log(JSON.stringify({viewport,cliBase64Unicode:'PASS',connect:'PASS',mixedQueue:'PASS',collection:'PASS',immediateStop:'PASS',rawResponseLog:'PASS',realGameCommands:0}));
+  console.log(JSON.stringify({viewport,cliBase64Unicode:'PASS',connect:'PASS',mixedQueue:'PASS',finalRegistration:'PASS',immediateStop:'PASS',rawResponseLog:'PASS',realGameCommands:0}));
   await client.js("setTimeout(()=>window.mobi.call('close-app'),50);true");for(let i=0;i<50&&child.exitCode===null;i++)await delay(100);assert.notEqual(child.exitCode,null);
  }finally{client?.ws.close();if(child.exitCode===null)child.kill();}
 })().catch(error=>{console.error(error.stack);process.exitCode=1;});

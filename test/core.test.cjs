@@ -52,9 +52,9 @@ test('SET fills slots first before ordinary processing gets its turn', async () 
   await e.run();assert.deepEqual(cli.calls.filter(c => c.command === 'execute_altering').map(c => c.body.displayName), ['B', 'C', 'B', 'C', 'B', 'C', 'B']);
   assert.equal(e.terminal.type, 'stopped');assert.equal(cli.works.length, 7);
 });
-test('finite processing completes actual collected batches and ignores existing output stock', async () => {
+test('finite processing completes registered batches and ignores existing output stock', async () => {
   const { e, cli } = await fixture({ stock: { 광석: 50, A: 1000 }, autoComplete: true });const job = e.add({ kind: 'materials', name: 'A', count: 3 });
-  await e.run();assert.equal(job.status, 'done');assert.equal(job.completed, 3);assert.equal(cli.stock.A, 1009);
+  await e.run();assert.equal(job.status, 'done');assert.equal(job.completed, 3);assert.equal(cli.stock.A, 1000);assert.equal(cli.works.length,3);
   assert.equal(cli.calls.filter(x => x.command === 'execute_altering').length, 3);assert.equal(e.terminal.type, 'done');
 });
 test('an immediate task leaves unrelated queued tasks waiting', async () => {

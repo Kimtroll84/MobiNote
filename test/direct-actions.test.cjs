@@ -14,7 +14,7 @@ for (const [kind,name,count] of [['gather','광석',3],['craft','키트',2],['ma
   assert.ok(snapshots.every(q=>q.length===1&&q[0].id===queued.id));assert.equal(e.persistent().queue.length,1);
   assert.equal(e.immediateTask,null);assert.equal(e.terminal.completed,1);assert.equal(e.terminal.total,1);
   if(kind==='craft')assert.equal(cli.calls.find(c=>c.command==='execute_crafting').body.craftCount,2);
-  if(kind==='materials'){assert.equal(cli.calls.filter(c=>c.command==='execute_altering').length,2);assert.equal(cli.works.length,0);}
+  if(kind==='materials'){assert.equal(cli.calls.filter(c=>c.command==='execute_altering').length,2);assert.equal(cli.works.length,2);}
 });
 for (const reregister of [false,true]) test(`direct collection (reregister=${reregister}) never enters or runs the queue`,async()=>{
   const {e,cli}=await setup(false);cli.works=[{DisplayName:'B',FacilityName:'시설',State:'Completed',IsCompleted:true}];

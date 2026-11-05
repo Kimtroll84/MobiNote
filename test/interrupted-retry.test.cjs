@@ -6,9 +6,9 @@ async function setup(enabled=true){
  const e=new Engine(cli,{retryInterrupted:enabled},{db,delay:async ms=>{waits.push(ms);await Promise.resolve();}});await e.connect();return {e,cli,waits};
 }
 function blocked(){try{decode(JSON.stringify({error:'blocked',kind:'unknown_modal',gained:1}));}catch(e){return e;}}
-test('retry defaults off and its preference survives persistence and snapshot',()=>{
- const e=new Engine(new FakeCli());assert.equal(e.snapshot().preferences.retryInterrupted,false);
- e.preferences.retryInterrupted=true;assert.equal(new Engine(new FakeCli(),e.persistent()).snapshot().preferences.retryInterrupted,true);
+test('retry defaults on and its preference survives persistence and snapshot',()=>{
+ const e=new Engine(new FakeCli());assert.equal(e.snapshot().preferences.retryInterrupted,true);
+ e.preferences.retryInterrupted=false;assert.equal(new Engine(new FakeCli(),e.persistent()).snapshot().preferences.retryInterrupted,false);
 });
 for(const enabled of [false,true])test(`game-stopped crafting retries only when enabled=${enabled}`,async()=>{
  const {e,cli,waits}=await setup(enabled),action=cli.action.bind(cli);let starts=0;

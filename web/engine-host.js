@@ -64,11 +64,12 @@
    case 'choose-cli':idle();return native.call('choose-cli');
    case 'close-app':if(engine.running)throw new Error('작업을 중단한 뒤 닫아 주세요.');clearInterval(pollingTimer);await native.call('close-app');return;
    case 'settings':{
-    idle();const refill=Number(input.processingRefillRounds??2);if(!Number.isSafeInteger(refill)||refill<1||refill>999)throw new Error('재료 준비 분량은 1~999회분으로 입력해 주세요.');
+    idle();const manualMaterials=input.manualMaterials??engine.preferences.manualMaterials;if(!Array.isArray(manualMaterials)||manualMaterials.some(n=>typeof n!=='string'||!engine.db.gather.some(r=>r.name===n)))throw new Error('직접 준비할 채집 재료를 확인해 주세요.');
+    const refill=Number(input.processingRefillRounds??2);if(!Number.isSafeInteger(refill)||refill<1||refill>999)throw new Error('재료 준비 분량은 1~999회분으로 입력해 주세요.');
     const n=Number(input.limit),minutes=Number(input.cycleMinutes||0);
     if(!Number.isInteger(n)||n<1||n>100||!Number.isFinite(minutes)||minutes<0||(input.cycleTimeEnabled&&minutes<=0))throw new Error('가방 공간 기준과 SET 반복 시간을 확인해 주세요.');
     if(input.cliPath&&input.cliPath!==transport.file){await transport.setPath(input.cliPath);engine.connected=false;engine.wingsStale=true;}
-    Object.assign(engine.preferences,{cliPath:transport.file,processingRefillRounds:refill,strictOrder:input.strictOrder===true,bagCheck:input.bagCheck===true,limit:n,fantasyMembership:input.fantasyMembership!==false,retryInterrupted:input.retryInterrupted===true,cycleTimeEnabled:input.cycleTimeEnabled===true,cycleMinutes:minutes,agentSeparate:input.agentSeparate!==false,agentOnTop:input.agentOnTop!==false,agentCharacter:input.agentCharacter==='B'?'B':'A'});
+    Object.assign(engine.preferences,{cliPath:transport.file,processingRefillRounds:refill,strictOrder:input.strictOrder===true,bagCheck:input.bagCheck===true,limit:n,fantasyMembership:input.fantasyMembership!==false,retryInterrupted:input.retryInterrupted!==false,manualMaterialsEnabled:input.manualMaterialsEnabled===true,manualMaterials:[...new Set(manualMaterials)],cycleTimeEnabled:input.cycleTimeEnabled===true,cycleMinutes:minutes,agentSeparate:input.agentSeparate!==false,agentOnTop:input.agentOnTop!==false,agentCharacter:input.agentCharacter==='B'?'B':'A'});
     engine.publish();if(await native.call('agent-visible'))await showAgent();return;
    }
    case 'favorite':{

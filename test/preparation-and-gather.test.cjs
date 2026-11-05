@@ -7,7 +7,7 @@ const {decode}=require('../lib/transport.cjs');
 const {FakeCli,fixtureDb}=require('./fake-cli.cjs');
 async function setup(stock={}){
   const db=fixtureDb(),cli=new FakeCli({db,stock,autoComplete:true});let now=0;const events=[];
-  const e=new Engine(cli,{}, {db,now:()=>now,delay:async ms=>{now+=ms;await Promise.resolve();}});await e.connect();
+  const e=new Engine(cli,{retryInterrupted:false}, {db,now:()=>now,delay:async ms=>{now+=ms;await Promise.resolve();}});await e.connect();
   e.gather=async(name,amount)=>{events.push(['gather',name,amount]);cli.stock[name]=(cli.stock[name]||0)+amount;};
   cli.onAction=(command,body)=>events.push([command,body.displayName]);return {e,cli,db,events};
 }
@@ -56,7 +56,7 @@ for(const locked of [false,true])test(`one-item gathering retries transient inva
     }
     return action(command,body);
   };
-  const e=new Engine(cli,{}, {db,now:()=>clock,delay:async ms=>{clock+=ms;if(running&&ms===1000)gained++;await Promise.resolve();}});await e.connect();
+  const e=new Engine(cli,{retryInterrupted:false}, {db,now:()=>clock,delay:async ms=>{clock+=ms;if(running&&ms===1000)gained++;await Promise.resolve();}});await e.connect();
   await e.runImmediate({kind:'gather',name:'달걀',count:1});
   assert.equal(running,false);assert.equal(stops,2);assert.equal(gained,1);assert.equal(e.terminal.type,'done');assert.equal(e.terminal.completed,1);
 });
@@ -66,7 +66,7 @@ test('observation counts locked stacks but production stock still excludes them'
 test('real blocked failures remain errors instead of being mistaken for requested cancellation',async()=>{
   const db=fixtureDb(),cli=new FakeCli({db});const original=cli.action.bind(cli);
   cli.action=async(command,body)=>{if(command==='execute_gathering'){const error=new Error('게임 확인 창을 처리해 주세요.');error.code='blocked';throw error;}return original(command,body);};
-  const e=new Engine(cli,{}, {db,delay:async()=>{await Promise.resolve();}});await e.connect();await e.runImmediate({kind:'gather',name:'광석',count:1});
+  const e=new Engine(cli,{retryInterrupted:false}, {db,delay:async()=>{await Promise.resolve();}});await e.connect();await e.runImmediate({kind:'gather',name:'광석',count:1});
   assert.equal(e.terminal.type,'error');assert.equal(e.terminal.errorCode,'blocked');
 });
 
@@ -79,7 +79,7 @@ for(const status of ['accepted'])test(`blocked diagnostics preserve kind, origin
     }
     return action(command,body);
   };
-  const e=new Engine(cli,{}, {db,delay:async()=>{await Promise.resolve();}});await e.connect();let finished;e.on('finished',result=>{finished=result;});
+  const e=new Engine(cli,{retryInterrupted:false}, {db,delay:async()=>{await Promise.resolve();}});await e.connect();let finished;e.on('finished',result=>{finished=result;});
   await e.runImmediate({kind:'gather',name:'광석',count:1});
   assert.equal(finished.type,'error');assert.equal(finished.errorCode,'blocked');assert.equal(finished.errorCommand,'execute_gathering');
   assert.equal(finished.errorKind,'test_window');assert.equal(finished.errorOriginalMessage,'Synthetic blocking window message.');assert.equal(finished.errorResponseStatus,status);

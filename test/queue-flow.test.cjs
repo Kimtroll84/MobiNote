@@ -33,10 +33,10 @@ test('SET registers first; a full facility defers ordinary processing until afte
   assert.equal(set.completed,14);assert.equal(material.completed,2);assert.equal(craft.completed,1);assert.equal(e.terminal.type,'done');
 });
 test('waiting processing keeps the queue active and retries without repeating completed ordinary work',async()=>{
-  const {e,cli}=await setup(false);const material=e.add({kind:'materials',name:'A',count:1}),craft=e.add({kind:'craft',name:'키트',count:1});let waits=0;
+  const {e,cli}=await setup(false);const material=e.add({kind:'materials',name:'A',count:8}),craft=e.add({kind:'craft',name:'키트',count:1});let waits=0;
   e.delay=async ms=>{if(ms!==5000){await Promise.resolve();return;}assert.equal(e.running,true);if(++waits===2)for(const w of cli.works)Object.assign(w,{State:'Completed',IsCompleted:true,RemainingSeconds:0});};
-  await e.run();assert.equal(waits,2);assert.equal(material.completed,1);assert.equal(craft.completed,1);
-  assert.equal(cli.calls.filter(c=>c.command==='execute_crafting').length,1);assert.equal(cli.calls.filter(c=>c.command==='execute_altering').length,1);assert.equal(e.terminal.type,'done');
+  await e.run();assert.equal(waits,2);assert.equal(material.completed,8);assert.equal(craft.completed,1);
+  assert.equal(cli.calls.filter(c=>c.command==='execute_crafting').length,1);assert.equal(cli.calls.filter(c=>c.command==='execute_altering').length,8);assert.equal(e.terminal.type,'done');
 });
 test('a multi-batch ordinary craft finishes before any SET collection or refill',async()=>{
   const {e,cli}=await setup();const original=cli.action.bind(cli);

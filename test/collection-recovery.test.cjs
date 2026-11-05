@@ -29,10 +29,10 @@ test('stale post-collection read is retried without sending the collect command 
  await e.collectFacility('시설',job);assert.equal(actions,1);assert.equal(reads,2);assert.equal(job.completed,1);
 });
 test('unexplained collection holds only that facility while another queue job finishes',async()=>{
- const {e,cli}=await setup();const job=e.add({kind:'materials',name:'A',count:1}),next=e.add({kind:'craft',name:'키트',count:1});const action=cli.action.bind(cli);
+ const {e,cli}=await setup();const job=e.add({kind:'materials',name:'A',count:8}),next=e.add({kind:'craft',name:'키트',count:1});const action=cli.action.bind(cli);
  cli.action=async(cmd,body)=>{if(cmd==='complete_altering_work'){cli.works=[{DisplayName:'unknown',FacilityName:'시설',State:'InProgress',RemainingSeconds:30}];return {collected:1};}return action(cmd,body);};
- await e.run();assert.equal(job.status,'held');assert.equal(next.status,'done');assert.equal(job.registered,1);assert.equal(job.completed,0);assert.equal(e.terminal.type,'done');assert.equal(e.terminal.held,1);assert.match(e.terminal.text,/보류/);
- assert.equal(cli.calls.filter(c=>c.command==='execute_altering').length,1);
+ await e.run();assert.equal(job.status,'held');assert.equal(next.status,'done');assert.equal(job.registered,7);assert.equal(job.completed,0);assert.equal(e.terminal.type,'done');assert.equal(e.terminal.held,1);assert.match(e.terminal.text,/보류/);
+ assert.equal(cli.calls.filter(c=>c.command==='execute_altering').length,7);
 });
 test('finite registrations never exceed target when extra works are collected in transit',async()=>{
  const {e,cli}=await setup();const job=e.add({kind:'materials',name:'A',count:10}),action=cli.action.bind(cli);

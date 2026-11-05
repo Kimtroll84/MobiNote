@@ -52006,6 +52006,10 @@
       "produced": 5,
       "ingredients": [
         {
+          "name": "상급 뛰어난 붕대",
+          "required": 5
+        },
+        {
           "name": "분해된 장비 부품",
           "required": 100
         }

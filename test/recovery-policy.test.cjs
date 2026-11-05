@@ -10,7 +10,7 @@ const rejected=(code,status='rejected')=>decode(JSON.stringify({status,body:{err
 test('obsolete unrelated facility records resynchronize and never credit an old job to the new task',async()=>{
   const {e}=await setup();e.ledger.시설=Array.from({length:7},()=>({name:'B',owner:'deleted-job'}));
   const job=e.add({kind:'materials',name:'A',count:2}),next=e.add({kind:'craft',name:'키트',count:1});await e.run();
-  assert.equal(e.terminal.type,'done');assert.equal(job.completed,2);assert.equal(next.completed,1);assert.equal(e.ledger.시설.length,0);
+  assert.equal(e.terminal.type,'done');assert.equal(job.completed,2);assert.equal(next.completed,1);assert.equal(e.ledger.시설.length,2);assert.ok(e.ledger.시설.every(s=>s.owner===null));
 });
 test('unexpected disappearance of a slot belonging to a current queue job still stops execution',async()=>{
   const {e,cli}=await setup();const job=e.add({kind:'materials',name:'A',count:1});e.ledger.시설=[{name:'B',owner:job.id}];await e.run();

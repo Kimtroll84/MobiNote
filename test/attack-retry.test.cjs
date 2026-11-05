@@ -13,7 +13,7 @@ async function setup(step,onDelay){
     if(outcome.error)return decode(JSON.stringify({status:'accepted',body:{error:outcome.error,gained:outcome.gained||0,target:100,message:'interrupted'}}));
     return {result:outcome.result||'completed',gained:outcome.gained||0};
   };
-  e=new Engine(cli,{}, {db,now:()=>clock,delay:async ms=>{clock+=ms;if(onDelay)onDelay(e,attempts,ms);await Promise.resolve();}});await e.connect();
+  e=new Engine(cli,{retryInterrupted:false}, {db,now:()=>clock,delay:async ms=>{clock+=ms;if(onDelay)onDelay(e,attempts,ms);await Promise.resolve();}});await e.connect();
   e.on('change',s=>{if(['gather','shortage','stop-wait'].includes(s.stage.type)&&s.stage.gathered!=null)states.push({...s.stage});});
   return {e,cli,states,attempts:()=>attempts};
 }

@@ -52,7 +52,7 @@ for(const kind of ['materials','cycle'])test(`reset excludes already registered 
   e.resetQueue();assert.ok(e.ledger.시설.every(s=>s.owner===null));await e.run();
   const expected=kind==='materials'?10:2;assert.equal(e.queue[0].completed,expected);
   const registered=cli.calls.filter(c=>c.command==='execute_altering').map(c=>c.body.displayName);assert.equal(registered.length,expected);
-  if(kind==='cycle')assert.deepEqual(registered,['B','C']);assert.equal(cli.works.length,0);
+  if(kind==='cycle')assert.deepEqual(registered,['B','C']);assert.equal(cli.works.length,kind==='materials'?3:0);
 });
 test('whole resume rejects uncertain execution but explicit reset clears it without game actions',async()=>{
   const {e,cli}=await setup();const a=e.add({kind:'craft',name:'키트',count:2}),b=e.add({kind:'craft',name:'키트',count:2});a.status='stopped';a.completed=1;b.status='stopped';b.uncertain=true;
