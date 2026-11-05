@@ -44,6 +44,9 @@ namespace MobiNote {
   private readonly HashSet<string> actions=new HashSet<string>{"execute_gathering","execute_crafting","execute_altering","complete_altering_work","stop_action"};
   private readonly Dictionary<long,TaskCompletionSource<object>> agentRequests=new Dictionary<long,TaskCompletionSource<object>>();
   private CoreWebView2Environment environment;private AgentForm agent;private WebView2 agentView;
+  private Form picker;private WebView2 pickerView;private object pickerData;private Task pickerOpening;private bool pickerAllowClose;
+  private readonly Timer pickerPositionTimer=new Timer{Interval=150};
+  private readonly Dictionary<long,TaskCompletionSource<object>> pickerRequests=new Dictionary<long,TaskCompletionSource<object>>();
   private object currentState;private Dictionary<string,object> preferences,appInfo;
   private bool running,ready,allowClose,closing,rendererFailed;private long agentSequence;
   private readonly Timer positionTimer=new Timer{Interval=150};
@@ -51,11 +54,12 @@ namespace MobiNote {
   [DllImport("user32.dll")]private static extern IntPtr SendMessage(IntPtr hwnd,int msg,IntPtr wparam,IntPtr lparam);
   internal AppHost(string folder){
    root=folder;settingsFile=Path.Combine(root,"settings.json");Directory.CreateDirectory(Path.Combine(root,"user"));
-   Text="모비노트 0.9.7 · WebView2";StartPosition=FormStartPosition.CenterScreen;ClientSize=new Size(920,920);
+   Text="모비노트 0.9.7a · WebView2";StartPosition=FormStartPosition.CenterScreen;ClientSize=new Size(920,920);
    MinimumSize=new Size(Width,640);MaximumSize=new Size(Width,65535);MaximizeBox=false;AutoScaleMode=AutoScaleMode.Dpi;BackColor=ColorTranslator.FromHtml("#f6f9f1");
    Icon=new Icon(Path.Combine(root,"content/ui/assets/MobiNote_A.ico"));mainView.Dock=DockStyle.Fill;Controls.Add(mainView);
    positionTimer.Tick+=(sender,e)=>{positionTimer.Stop();if(agent!=null&&!agent.IsDisposed&&agent.Visible)Post(mainView,"agent-position",new{x=agent.Left,y=agent.Top});};
-   FormClosing+=OnClosing;FormClosed+=(sender,e)=>{closing=true;DestroyAgent();positionTimer.Dispose();mainView.Dispose();};Shown+=async(sender,e)=>await Initialize();
+   pickerPositionTimer.Tick+=(sender,e)=>{pickerPositionTimer.Stop();SavePickerPosition();};
+   FormClosing+=OnClosing;FormClosed+=(sender,e)=>{closing=true;DestroyPicker();DestroyAgent();positionTimer.Dispose();pickerPositionTimer.Dispose();mainView.Dispose();};Shown+=async(sender,e)=>await Initialize();
   }
   private async Task Initialize(){
    try{
@@ -68,7 +72,7 @@ namespace MobiNote {
     await Configure(mainView,false);mainView.CoreWebView2.NavigationCompleted+=async(sender,e)=>{if(e.IsSuccess){await NormalizeSize(this,mainView,920,920,true);CenterToScreen();ready=true;}};mainView.CoreWebView2.Navigate("https://mobinote.example/ui/index.html");
    }catch(Exception error){Log("errors.log",new{eventName="startup",message=error.ToString()});MessageBox.Show(this,"앱을 시작하지 못했어요.\nMicrosoft Edge WebView2 Runtime과 .NET Framework 4.8이 필요해요.\n\n"+error.Message,"모비노트",MessageBoxButtons.OK,MessageBoxIcon.Error);allowClose=true;Close();}
   }
-  private async Task Configure(WebView2 view,bool popup){
+  private async Task Configure(WebView2 view,bool popup,string role=null){
    view.DefaultBackgroundColor=popup?Color.Transparent:Color.White;await view.EnsureCoreWebView2Async(environment);var core=view.CoreWebView2;
    core.SetVirtualHostNameToFolderMapping("mobinote.example",Path.Combine(root,"content"),CoreWebView2HostResourceAccessKind.DenyCors);
    core.Settings.AreDefaultContextMenusEnabled=false;core.Settings.AreDevToolsEnabled=false;core.Settings.AreBrowserAcceleratorKeysEnabled=false;core.Settings.IsStatusBarEnabled=false;core.Settings.IsZoomControlEnabled=false;core.Settings.IsGeneralAutofillEnabled=false;core.Settings.IsPasswordAutosaveEnabled=false;
@@ -77,8 +81,8 @@ namespace MobiNote {
    core.WebMessageReceived+=async(sender,e)=>{
     Dictionary<string,object> request=null;
     try{
-     string expected="https://mobinote.example/ui/"+(popup?"progress.html":"index.html");if(e.Source!=expected)throw new Exception("허용되지 않은 페이지 요청이에요.");
-     request=Parse(e.WebMessageAsJson);string method=TextValue(request,"method");if(popup&&method!="agent-request"&&method!="drag-agent")throw new Exception("허용되지 않은 작업 에이전트 요청이에요.");
+     string expected="https://mobinote.example/ui/"+(role=="picker"?"picker.html":popup?"progress.html":"index.html");if(e.Source!=expected)throw new Exception("허용되지 않은 페이지 요청이에요.");
+     request=Parse(e.WebMessageAsJson);string method=TextValue(request,"method");if(role=="picker"&&method!="picker-request"&&method!="hide-picker")throw new Exception("허용되지 않은 가공품 선택창 요청이에요.");if(popup&&role!="picker"&&method!="agent-request"&&method!="drag-agent")throw new Exception("허용되지 않은 작업 에이전트 요청이에요.");
      object result=await Dispatch(method,Dict(Value(request,"body")),popup);Reply(view,Value(request,"id"),true,result,null);
     }catch(Exception error){var nativeError=error as NativeError;Reply(view,request==null?null:Value(request,"id"),false,null,new{message=error.Message,code=nativeError==null?null:nativeError.Code,command=nativeError==null?null:nativeError.Command});}
    };
@@ -104,7 +108,7 @@ namespace MobiNote {
   private async Task<object> Dispatch(string method,Dictionary<string,object> body,bool popup){
    switch(method){
     case "startup":return new{preferences=preferences,appInfo=appInfo};
-    case "window-metrics":return new{clientWidth=ClientSize.Width,clientHeight=ClientSize.Height,viewWidth=mainView.Width,viewHeight=mainView.Height,dpi=DeviceDpi,visible=Visible,ready=ready,agent=agent==null?null:(object)new{x=agent.Left,y=agent.Top,width=agent.Width,height=agent.Height}};
+    case "window-metrics":return new{clientWidth=ClientSize.Width,clientHeight=ClientSize.Height,viewWidth=mainView.Width,viewHeight=mainView.Height,dpi=DeviceDpi,visible=Visible,ready=ready,agent=agent==null?null:(object)new{x=agent.Left,y=agent.Top,width=agent.Width,height=agent.Height},main=new{x=Left,y=Top,width=Width,height=Height},picker=picker==null?null:(object)new{x=picker.Left,y=picker.Top,width=picker.Width,height=picker.Height,visible=picker.Visible,topMost=picker.TopMost,owned=picker.Owner==this}};
     case "capture-main":
      if(String.IsNullOrEmpty(Environment.GetEnvironmentVariable("MOBINOTE_DEBUG_PORT")))throw new Exception("진단 모드에서만 사용할 수 있어요.");
      Show();WindowState=FormWindowState.Normal;BringToFront();Activate();mainView.Visible=true;mainView.Focus();await Task.Delay(500);
@@ -116,6 +120,21 @@ namespace MobiNote {
      string agentShot=Path.Combine(root,"agent-preview.png");
      using(var stream=File.Create(agentShot))await agentView.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png,stream);
      return agentShot;
+    case "show-picker":
+     if(running)throw new Exception("작업 중에는 가공품을 선택할 수 없어요.");pickerData=Value(body,"data");
+     if(pickerOpening==null)pickerOpening=EnsurePicker();try{await pickerOpening;}finally{pickerOpening=null;}
+     if(!closing&&picker!=null&&!picker.IsDisposed){if(!picker.Visible)picker.Show(this);picker.BringToFront();Post(pickerView,"picker-state",pickerData);Post(mainView,"picker-visible",true);}return null;
+    case "update-picker":pickerData=Value(body,"data");if(picker!=null&&!picker.IsDisposed&&picker.Visible)Post(pickerView,"picker-state",pickerData);return null;
+    case "hide-picker":HidePicker();return null;
+    case "picker-response":
+     long pickerId=Convert.ToInt64(Value(body,"id"));TaskCompletionSource<object> pickerCompletion;
+     if(pickerRequests.TryGetValue(pickerId,out pickerCompletion)){pickerRequests.Remove(pickerId);if(BoolValue(body,"ok"))pickerCompletion.TrySetResult(Value(body,"data"));else pickerCompletion.TrySetException(new Exception(TextValue(body,"error")));}return null;
+    case "picker-request":
+     string pickerCommand=TextValue(body,"command");if(pickerCommand=="bootstrap")return pickerData;
+     if(pickerCommand!="select"&&pickerCommand!="facility")throw new Exception("허용되지 않은 선택창 명령이에요.");
+     if(running)throw new Exception("작업 중에는 선택을 바꿀 수 없어요.");
+     long pickerRequestId=++agentSequence;var pickerResponse=new TaskCompletionSource<object>();pickerRequests[pickerRequestId]=pickerResponse;
+     Post(mainView,"picker-call",new{id=pickerRequestId,command=pickerCommand,value=Value(body,"value")});return await pickerResponse.Task;
     case "validate-cli":ValidateCli(TextValue(body,"file"));return null;
     case "cli":return await RunCli(body);
     case "publish-state":UpdateState(Value(body,"state"));return null;
@@ -149,6 +168,29 @@ namespace MobiNote {
     default:throw new Exception("지원하지 않는 네이티브 요청이에요.");
    }
   }
+  private async Task EnsurePicker(){
+   if(picker!=null&&!picker.IsDisposed)return;
+   var window=new Form{Text="가공품 선택",FormBorderStyle=FormBorderStyle.FixedToolWindow,ShowInTaskbar=false,StartPosition=FormStartPosition.Manual,ClientSize=new Size(410,430),TopMost=false,Icon=Icon};
+   var view=new WebView2{Dock=DockStyle.Fill};window.Controls.Add(view);picker=window;pickerView=view;
+   var saved=Dict(Value(preferences,"pickerPosition"));Point initial=new Point(Right+12,Top+110);
+   if(saved.ContainsKey("x")&&saved.ContainsKey("y")){try{initial=new Point(Convert.ToInt32(saved["x"]),Convert.ToInt32(saved["y"]));}catch{}}
+   Rectangle area=Screen.FromPoint(initial).WorkingArea;
+   window.Location=new Point(Math.Max(area.Left,Math.Min(initial.X,area.Right-window.Width)),Math.Max(area.Top,Math.Min(initial.Y,area.Bottom-window.Height)));
+   window.LocationChanged+=(sender,e)=>{if(window.Visible){pickerPositionTimer.Stop();pickerPositionTimer.Start();}};
+   window.FormClosing+=(sender,e)=>{if(!pickerAllowClose&&!closing&&!allowClose&&e.CloseReason!=CloseReason.FormOwnerClosing){e.Cancel=true;HidePicker();}};
+   try{
+    var handle=window.Handle;await Configure(view,true,"picker");var loaded=new TaskCompletionSource<bool>();EventHandler<CoreWebView2NavigationCompletedEventArgs> completed=null;
+    completed=(sender,e)=>{view.CoreWebView2.NavigationCompleted-=completed;loaded.TrySetResult(e.IsSuccess);};view.CoreWebView2.NavigationCompleted+=completed;view.CoreWebView2.Navigate("https://mobinote.example/ui/picker.html");
+    if(!await loaded.Task)throw new Exception("가공품 선택창을 불러오지 못했어요.");
+    await NormalizeSize(window,view,410,430,false);
+   }catch{DestroyPicker();throw;}
+  }
+  private void SavePickerPosition(){
+   if(picker==null||picker.IsDisposed||preferences==null)return;
+   preferences["pickerPosition"]=new Dictionary<string,object>{{"x",picker.Left},{"y",picker.Top}};SaveSettings(preferences);if(!closing)Post(mainView,"picker-position",preferences["pickerPosition"]);
+  }
+  private void HidePicker(){pickerPositionTimer.Stop();if(picker!=null&&!picker.IsDisposed&&picker.Visible){SavePickerPosition();picker.Hide();}if(!closing)Post(mainView,"picker-visible",false);}
+  private void DestroyPicker(){pickerPositionTimer.Stop();if(picker!=null&&!picker.IsDisposed){SavePickerPosition();pickerAllowClose=true;var old=picker;picker=null;pickerView=null;old.Close();old.Dispose();pickerAllowClose=false;}foreach(var pending in pickerRequests.Values)pending.TrySetException(new Exception("선택창이 종료됐어요."));pickerRequests.Clear();}
   private async Task ShowAgent(Dictionary<string,object> options){
    if(agent==null||agent.IsDisposed){
     var window=new AgentForm();var view=new WebView2{Dock=DockStyle.Fill};window.Controls.Add(view);agent=window;agentView=view;window.Running=running;window.Icon=Icon;window.TopMost=BoolValue(options,"onTop");
@@ -162,7 +204,7 @@ namespace MobiNote {
    }else{agent.TopMost=BoolValue(options,"onTop");agent.Running=running;if(!agent.Visible)agent.Show();await FocusAgentCanvas(agentView);Post(agentView,"state",currentState);}
   }
   private async Task FocusAgentCanvas(WebView2 view){if(view==null||view.IsDisposed||view.CoreWebView2==null)return;await view.CoreWebView2.ExecuteScriptAsync("(()=>{const main=document.querySelector('main');if(main){main.tabIndex=-1;main.focus({preventScroll:true});}})()");}
-  private void UpdateState(object state){if(state==null)return;currentState=state;running=BoolValue(Dict(state),"running");if(agent!=null&&!agent.IsDisposed){agent.Running=running;Post(agentView,"state",state);}}
+  private void UpdateState(object state){if(state==null)return;currentState=state;running=BoolValue(Dict(state),"running");if(running)HidePicker();if(agent!=null&&!agent.IsDisposed){agent.Running=running;Post(agentView,"state",state);}}
   private async Task NormalizeSize(Form form,WebView2 view,int width,int height,bool resizeHeight){
    try{
     for(int i=0;i<2;i++){

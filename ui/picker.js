@@ -1,0 +1,9 @@
+'use strict';
+const $=id=>document.getElementById(id),escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));let data,busy=false;
+function render(next){if(next)data=next;if(!data)return;const select=$('facility');if(select.dataset.ready!=='yes'){select.innerHTML=data.facilities.map(f=>`<option value="${escape(f.name)}">${escape(f.name)}</option>`).join('');select.dataset.ready='yes';}select.value=data.facility;select.disabled=busy||data.running;
+ const gather=new Set(data.gatherables),stock=data.stock||{},scroll=$('products').scrollTop;
+ $('products').innerHTML=data.products.map(p=>{const missing=p.ingredients.some(i=>(stock[i.name]||0)<i.required),blocked=p.ingredients.some(i=>(stock[i.name]||0)<i.required&&!gather.has(i.name)),name=p.name.replace(/\([^)]*\)$/,'').trim();return `<button data-id="${escape(p.id)}" class="${blocked?'unavailable':missing?'needs-gather':''}" title="${missing?'재료 부족':'1회 '+p.produced+'개'}" ${busy||data.running||data.free<=0||blocked?'disabled':''}>${escape(p.name)} <small>${Number(data.owned[name]||0).toLocaleString('ko-KR')}개</small></button>`;}).join('');$('products').scrollTop=scroll;
+ for(const b of $('products').querySelectorAll('[data-id]'))b.onclick=()=>request('select',b.dataset.id);
+}
+async function request(command,value){if(busy)return;busy=true;$('error').hidden=true;render();try{render(await MobiNative.call('picker-request',{command,value}));}catch(error){$('error').textContent=error.message;$('error').hidden=false;}finally{busy=false;render();}}
+$('facility').onchange=()=>request('facility',$('facility').value);MobiNative.on('picker-state',next=>render(next));MobiNative.call('picker-request',{command:'bootstrap'}).then(render).catch(error=>{$('error').textContent=error.message;$('error').hidden=false;});document.addEventListener('keydown',e=>{if(e.key==='Escape')MobiNative.call('hide-picker');});

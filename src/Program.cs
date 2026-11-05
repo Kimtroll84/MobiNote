@@ -9,8 +9,9 @@ using System.Windows.Forms;
 [assembly: AssemblyProduct("MobiNote")]
 [assembly: AssemblyCompany("Troll_Kim")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Troll_Kim")]
-[assembly: AssemblyVersion("0.9.7.0")]
-[assembly: AssemblyFileVersion("0.9.7.0")]
+[assembly: AssemblyVersion("0.9.7.1")]
+[assembly: AssemblyFileVersion("0.9.7.1")]
+[assembly: AssemblyInformationalVersion("0.9.7a")]
 namespace MobiNote {
  internal static class Program {
   [STAThread] private static void Main() {

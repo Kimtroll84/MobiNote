@@ -14,7 +14,7 @@ function setCatalog(value) { db = value;byId = new Map([...db.gather, ...db.craf
 let dragId = null, presetDrag = null, presetDraft = null, activePreset = null, pickerSelection = [], pickerMode = 'plan', pickerSlots = 0, slotSelection = [];
 const expanded = new Set(), sets = new Map(), repeatCounts = new Map(), gatherBatchCounts = new Map();
 let materialView = null;
-let facilityPlan=[], immediateRepeats=1, queueRepeats=1;
+let facilityPlan=[], immediateRepeats=1, queueRepeats=1, pickerNativeOpen=false;
 const tabSelections=new Map();
 let presetBaseline = null, settingsBaseline = null, pickerBaseline = [], pickerFacility = '', decision = null, navigating = false;
 function presetValue(draft) {
@@ -64,7 +64,7 @@ async function saveSettings() {
 }
 function commitPicker() { sets.set(pickerFacility,[...pickerSelection]);pickerBaseline=[...pickerSelection];$('picker').close();detailSignature='';renderDetail(); }
 async function closeSettings() { if(await guardEdit(settingsDirty,saveSettings,()=>{},'설정'))$('settings').close(); }
-async function closePicker() { if(await guardEdit(pickerDirty,commitPicker,()=>{pickerSelection=[...pickerBaseline];},'가공 SET'))$('picker').close(); }
+async function closePicker(){await api('hide-picker');}
 async function guardedNavigate(action) {
   if(navigating)return;navigating=true;
   try{if(await guardPreset())await action();}finally{navigating=false;}
@@ -274,14 +274,14 @@ function refreshFacilityStatus(r,works){
  }
  for(const b of document.querySelectorAll('[data-open-facility]')){b.disabled=state.running;b.onclick=()=>openFacilityPicker(b.dataset.openFacility);}
  for(const b of document.querySelectorAll('.facility-slot'))b.onclick=()=>{
-  if(b.dataset.planned){facilityPlan.splice(facilityPlan.indexOf(b.dataset.planned),1);detailSignature='';renderDetail();if($('picker').open)renderPicker(pickerFacility);return;}
+  if(b.dataset.planned){facilityPlan.splice(facilityPlan.indexOf(b.dataset.planned),1);detailSignature='';renderDetail();if(pickerNativeOpen)renderPicker(pickerFacility);return;}
   const w=facilityWorks(b.dataset.facility)[Number(b.dataset.slot)];
   if(w&&!isDone(w)){toast(w.DisplayName+' · '+seconds(workRemaining(w)));return;}openFacilityPicker(b.dataset.facility);
  };
  for(const id of ['collect-now','collect-repeat'])$(id).disabled=!state.connected||state.running||!works.some(isDone);
  $('clear-facility-plan').disabled=state.running||!facilityPlan.length;
  for(const id of ['execute-plan','queue-plan'])$(id).disabled=!state.connected||state.running||!facilityPlan.length;
- if($('picker').open)renderPicker(pickerFacility);
+ if(pickerNativeOpen)renderPicker(pickerFacility);
 }
 function refreshFacilityList(){if(tab!=='facility')return;for(const row of document.querySelectorAll('.facility-item')){const works=state.works.filter(w=>row.dataset.id==='all'||w.FacilityName===row.dataset.id);setText(row.querySelector('.count'),`${works.filter(isDone).length}건 완료`);}}
 function planConfig(repeats){return {kind:'cycle',planMode:true,facility:'전체 가공 시설',pattern:[...facilityPlan],repeatCount:Number(repeats),gatherBatches:state.preferences.processingRefillRounds??2};}
@@ -294,11 +294,11 @@ function renderFacility(r){
  $('collect-repeat').onclick=()=>perform(()=>api('start',{kind:'collect',facility:r.id==='all'?'':r.name,reregister:true}));
  $('clear-facility-plan').onclick=()=>{facilityPlan=[];detailSignature='';renderDetail();};
  $('immediate-repeats').oninput=e=>immediateRepeats=e.target.value;$('queue-repeats').oninput=e=>queueRepeats=e.target.value;
- $('execute-plan').onclick=()=>perform(async()=>{await api('start',planConfig(immediateRepeats));facilityPlan=[];$('picker').close();detailSignature='';render();});
+ $('execute-plan').onclick=()=>perform(async()=>{await api('start',planConfig(immediateRepeats));facilityPlan=[];await api('hide-picker');detailSignature='';render();});
  $('queue-plan').onclick=()=>perform(async()=>{await api('add',planConfig(queueRepeats));facilityPlan=[];detailSignature='';render();});
  refreshFacilityStatus(r,works);
 }
-function openFacilityPicker(facility){if(state.running)return;pickerMode='plan';pickerFacility=facility;renderPicker(facility);if(!$('picker').open)$('picker').show();fitPicker();}
+function openFacilityPicker(facility){if(state.running)return;pickerMode='plan';pickerFacility=facility;return perform(()=>api('show-picker',pickerSnapshot()));}
 function registrationChoices(products, chosen, stock, gatherables = []) {
   const remaining={...stock},gather=new Set(gatherables),available=new Set(),needsGather=new Set();
   for(const id of chosen)for(const i of products.find(r=>r.id===id)?.ingredients||[])remaining[i.name]=Math.max(0,(remaining[i.name]||0)-i.required);
@@ -309,18 +309,25 @@ function registrationChoices(products, chosen, stock, gatherables = []) {
   }
   return {available,needsGather};
 }
-function renderPicker(facility){
- const selector=$('picker-facility');setMarkup(selector,db.facilities.map(f=>`<option value="${escape(f.name)}">${escape(f.name)}</option>`).join(''));selector.value=facility;
- selector.onchange=()=>{pickerFacility=selector.value;renderPicker(pickerFacility);};
- const products=unique(db.materials.filter(r=>r.facility===facility)),stock=planStock(),choices=registrationChoices(products,[],stock,state.gatherables||[]),free=facilityAvailable(facility)-pendingFor(facility).length,scroll=$('picker-list').scrollTop;
- $('picker-list').innerHTML=products.map(p=>{const missing=!choices.available.has(p.id),gather=choices.needsGather.has(p.id);return `<button class="product-chip ${gather?'needs-gather':''} ${missing?'unavailable':''}" data-recipe="${escape(p.id)}" title="${missing||gather?'재료 부족':'1회 '+p.produced+'개'}" ${state.running||free<=0||missing?'disabled':''}>${escape(p.name)} <small>${fmt(state.stock?.[p.name.replace(/\([^)]*\)$/, '').trim()]||0)}개</small></button>`;}).join('');
- $('picker-list').scrollTop=scroll;for(const b of $('picker-list').querySelectorAll('[data-recipe]'))b.onclick=()=>{facilityPlan.push(b.dataset.recipe);detailSignature='';renderDetail();renderPicker(pickerFacility);};
+function pickerSnapshot(){
+ return {facility:pickerFacility,facilities:db.facilities,products:unique(db.materials.filter(r=>r.facility===pickerFacility)),stock:planStock(),owned:state.stock||{},gatherables:state.gatherables||[],free:facilityAvailable(pickerFacility)-pendingFor(pickerFacility).length,running:state.running};
 }
-function fitPicker(){const dialog=$('picker');if(!dialog.open)return;const width=Math.min(410,innerWidth-24);dialog.style.width=width+'px';if(!dialog.dataset.moved){dialog.style.left=Math.max(12,innerWidth-width-16)+'px';dialog.style.top='145px';}}
-let pickerDrag=null;
-$('picker-drag').onpointerdown=e=>{if(e.target.closest('button'))return;const r=$('picker').getBoundingClientRect();pickerDrag={x:e.clientX-r.left,y:e.clientY-r.top};$('picker-drag').setPointerCapture(e.pointerId);};
-$('picker-drag').onpointermove=e=>{if(!pickerDrag)return;const p=$('picker');p.dataset.moved='1';p.style.left=Math.max(0,Math.min(innerWidth-p.offsetWidth,e.clientX-pickerDrag.x))+'px';p.style.top=Math.max(0,Math.min(innerHeight-50,e.clientY-pickerDrag.y))+'px';};
-$('picker-drag').onpointerup=$('picker-drag').onlostpointercapture=()=>pickerDrag=null;
+function renderPicker(){if(pickerNativeOpen)api('update-picker',pickerSnapshot()).catch(toast);}
+function fitPicker(){}
+MobiNative.on('picker-visible',visible=>pickerNativeOpen=visible);
+MobiNative.on('picker-call',async request=>{
+ try{
+  if(state.running)throw new Error('작업 중에는 선택을 바꿀 수 없어요.');
+  if(request.command==='facility'){
+   if(!db.facilities.some(f=>f.name===request.value))throw new Error('시설을 확인해 주세요.');pickerFacility=request.value;
+  }else if(request.command==='select'){
+   const recipe=byId.get(request.value);if(!recipe||recipe.facility!==pickerFacility||facilityAvailable(pickerFacility)<=pendingFor(pickerFacility).length)throw new Error('등록 가능한 빈 슬롯이 없어요.');
+   if(!registrationChoices([recipe],[],planStock(),state.gatherables||[]).available.has(recipe.id))throw new Error('재료가 부족해요.');
+   facilityPlan.push(recipe.id);detailSignature='';renderDetail();
+  }else throw new Error('지원하지 않는 선택 요청이에요.');
+  const snapshot=pickerSnapshot();await api('update-picker',snapshot);await api('picker-response',{id:request.id,ok:true,data:snapshot});
+ }catch(error){await api('picker-response',{id:request.id,ok:false,error:error.message});}
+});
 window.addEventListener('resize', fitPicker);
 function queueName(t) { return t.kind === 'register' ? groupedProducts(t.pattern).map(({recipe:r,count})=>r.name+(count>1?' ×'+count:'')).join(' / ')+' 등록' : t.kind === 'cycle' ? t.facility : t.kind === 'collect' ? t.facility || '전체 가공 시설' : t.name; }
 function renderQueue() {
@@ -409,7 +416,7 @@ function renderPresets() {
 }
 function render() {
   if (!state || !db) return;
-  if(state.running&&$('picker').open)$('picker').close();
+  if(state.running&&pickerNativeOpen){pickerNativeOpen=false;api('hide-picker').catch(()=>{});}
   const character=$('settings').open?$('agent-character').value:state.preferences.agentCharacter;
   const brandImage=document.querySelector('.brand img'),brandSource=`assets/characters/${character==='B'?'archer':'healer'}/01.png`;
   if(brandImage.getAttribute('src')!==brandSource)brandImage.src=brandSource;
@@ -419,7 +426,7 @@ function render() {
   $('favorite-filter').classList.toggle('active', favoriteOnly);setText($('favorite-filter'), favoriteOnly ? '★' : '☆');$('favorite-filter').setAttribute('aria-pressed', String(favoriteOnly));
   $('detail').classList.toggle('preset-detail', tab === 'presets');
   $('bag-current').textContent = `(현재 ${state.bag ? state.bag.percent.toFixed(1) : '—'}%)`;
-  renderList();refreshFacilityList();renderDetail();renderQueue();refreshOwnership();applyFills();updateSaveButtons();
+  renderList();refreshFacilityList();renderDetail();renderQueue();refreshOwnership();applyFills();updateSaveButtons();if(pickerNativeOpen&&tab!=='facility')renderPicker();
   $('status').textContent = state.stage.text || ({ checking: '작업에 필요한 정보를 확인하고 있어요.', gather: '자원을 모으고 있어요.', shortage: '부족한 재료를 모으고 있어요.', craft: '아이템을 제작하고 있어요.', register: '시설에 가공을 등록하고 있어요.', collect: '완료된 가공품을 수령하고 있어요.', waiting: '가공품이 만들어지는 중이에요.', 'shortage-wait': '직접 준비할 재료를 기다리고 있어요.' }[state.stage.type] || '게임 정보를 확인했어요.');
   $('wings').textContent = `날개 ${state.wings == null ? '—' : fmt(state.wings)}${state.wingsStale && state.wings != null ? ' · 갱신 대기' : ''}`;
 }

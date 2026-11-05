@@ -24,6 +24,7 @@
    if(result.type==='error')await native.call('error-log',result).catch(notifyError);
    await showAgent();native.emit('result',result);await native.call('agent-result',{result}).catch(notifyError);
   });
+  native.on('picker-position',position=>{engine.preferences.pickerPosition=position;native.call('persist-state',{persistent:engine.persistent(),state:engine.snapshot()}).catch(notifyError);});
   native.on('agent-position',position=>{engine.preferences.agentPosition=position;native.call('persist-state',{persistent:engine.persistent(),state:engine.snapshot()}).catch(notifyError);});
   native.on('agent-call',async request=>{try{await native.call('agent-response',{id:request.id,ok:true,data:await invoke(request.command,...request.args)});}catch(error){await native.call('agent-response',{id:request.id,ok:false,error:error.message});}});
   native.on('stop-request',()=>engine.stop());
@@ -54,6 +55,10 @@
    case 'reorder':return engine.reorder(input);
    case 'clear':if(engine.running)throw new Error('중단 후 비워 주세요.');engine.queue=[];engine.publish();return;
    case 'wings':return engine.balance();
+   case 'show-picker':idle();return native.call('show-picker',{data:input});
+   case 'update-picker':return native.call('update-picker',{data:input});
+   case 'hide-picker':return native.call('hide-picker');
+   case 'picker-response':return native.call('picker-response',input);
    case 'show-progress':return showAgent();
    case 'hide-progress':return hideAgent();
    case 'choose-cli':idle();return native.call('choose-cli');
