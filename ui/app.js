@@ -147,7 +147,7 @@ function renderFilters() {
   $('favorite-filter').hidden = ['favorites', 'facility', 'presets'].includes(tab);
 }
 function seconds(n) { n = Math.max(0, Math.ceil(Number(n) || 0));return n >= 3600 ? `${Math.floor(n / 3600)}시간 ${Math.floor(n % 3600 / 60)}분 ${n % 60}초` : n >= 60 ? `${Math.floor(n / 60)}분 ${n % 60}초` : `${n}초`; }
-const isDone = w => w.IsCompleted || w.State === 'Completed';
+const isDone = w => MobiWorkTime.isCompleted(w);
 function workRemaining(work) { return MobiWorkTime.remainingAt(work,state.worksReceivedAt); }
 function workLabel(work) { return work.State!=='NotStarted' && workRemaining(work)===0 ? '완료 확인 중' : seconds(workRemaining(work)); }
 function workMarkup(work) {
@@ -325,7 +325,7 @@ MobiNative.on('picker-call',async request=>{
    if(!registrationChoices([recipe],[],planStock(),state.gatherables||[]).available.has(recipe.id))throw new Error('재료가 부족해요.');
    facilityPlan.push(recipe.id);detailSignature='';renderDetail();
   }else throw new Error('지원하지 않는 선택 요청이에요.');
-  const snapshot=pickerSnapshot();await api('update-picker',snapshot);await api('picker-response',{id:request.id,ok:true,data:snapshot});
+  const snapshot=pickerSnapshot();await api('picker-response',{id:request.id,ok:true,data:snapshot});
  }catch(error){await api('picker-response',{id:request.id,ok:false,error:error.message});}
 });
 window.addEventListener('resize', fitPicker);

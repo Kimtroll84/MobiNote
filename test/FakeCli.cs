@@ -50,7 +50,7 @@ class FakeCli {
     }
     foreach(var i in Rows(recipe["ingredients"]))stock[Text(i,"name")]=Convert.ToInt32(Get(stock,Text(i,"name"))??0)-Convert.ToInt32(i["required"])*count;
     if(craft){stock[name]=Convert.ToInt32(Get(stock,name)??0)+Convert.ToInt32(recipe["produced"])*count;result=new{result="completed",craftCount=count};}
-    else{works.Add(new Dictionary<string,object>{{"DisplayName",name},{"FacilityName",recipe["facility"]},{"RemainingSeconds",0},{"State","Completed"},{"IsCompleted",true}});result=new{result="started"};}
+    else{int seconds=Convert.ToInt32(Get(state,"processingSeconds")??0);works.Add(new Dictionary<string,object>{{"DisplayName",name},{"FacilityName",recipe["facility"]},{"RemainingSeconds",seconds},{"State",seconds>0?"InProgress":"Completed"},{"IsCompleted",seconds==0}});result=new{result="started"};}
     break;
    }
    case "complete_altering_work":{

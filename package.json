@@ -1,7 +1,7 @@
 {
   "name": "mobinote-webview2",
   "productName": "모비노트",
-  "version": "0.9.8",
+  "version": "0.9.9",
   "private": true,
   "license": "MIT",
   "scripts": { "build": "python tools/build.py", "test": "node --test test/*.test.cjs" }

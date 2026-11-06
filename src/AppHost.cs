@@ -54,7 +54,7 @@ namespace MobiNote {
   [DllImport("user32.dll")]private static extern IntPtr SendMessage(IntPtr hwnd,int msg,IntPtr wparam,IntPtr lparam);
   internal AppHost(string folder){
    root=folder;settingsFile=Path.Combine(root,"settings.json");Directory.CreateDirectory(Path.Combine(root,"user"));
-   Text="모비노트 0.9.8 · WebView2";StartPosition=FormStartPosition.CenterScreen;ClientSize=new Size(920,920);
+   Text="모비노트 0.9.9 · WebView2";StartPosition=FormStartPosition.CenterScreen;ClientSize=new Size(920,920);
    MinimumSize=new Size(Width,640);MaximumSize=new Size(Width,65535);MaximizeBox=false;AutoScaleMode=AutoScaleMode.Dpi;BackColor=ColorTranslator.FromHtml("#f6f9f1");
    Icon=new Icon(Path.Combine(root,"content/ui/assets/MobiNote_A.ico"));mainView.Dock=DockStyle.Fill;Controls.Add(mainView);
    positionTimer.Tick+=(sender,e)=>{positionTimer.Stop();if(agent!=null&&!agent.IsDisposed&&agent.Visible)Post(mainView,"agent-position",new{x=agent.Left,y=agent.Top});};
@@ -170,7 +170,7 @@ namespace MobiNote {
   }
   private async Task EnsurePicker(){
    if(picker!=null&&!picker.IsDisposed)return;
-   var window=new Form{Text="가공품 선택",FormBorderStyle=FormBorderStyle.FixedToolWindow,ShowInTaskbar=false,StartPosition=FormStartPosition.Manual,ClientSize=new Size(410,430),TopMost=false,Icon=Icon};
+   var window=new Form{Text="가공품 선택",FormBorderStyle=FormBorderStyle.FixedSingle,MaximizeBox=false,MinimizeBox=false,BackColor=Color.FromArgb(245,248,239),ShowInTaskbar=false,StartPosition=FormStartPosition.Manual,ClientSize=new Size(410,430),TopMost=false,Icon=Icon};
    var view=new WebView2{Dock=DockStyle.Fill};window.Controls.Add(view);picker=window;pickerView=view;
    var saved=Dict(Value(preferences,"pickerPosition"));Point initial=new Point(Right+12,Top+110);
    if(saved.ContainsKey("x")&&saved.ContainsKey("y")){try{initial=new Point(Convert.ToInt32(saved["x"]),Convert.ToInt32(saved["y"]));}catch{}}

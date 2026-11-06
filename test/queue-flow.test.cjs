@@ -62,5 +62,5 @@ test('display countdown advances each second without mutating server work or ass
   assert.equal(Time.remainingAt(work,1000,2999),2);assert.equal(Time.remainingAt(work,1000,4000),0);assert.equal(work.RemainingSeconds,3);
   assert.equal(Time.progress({...work,RemainingSeconds:0},[{name:'A',durationSeconds:3}]),99);
   assert.equal(Time.remainingAt({...work,State:'NotStarted'},1000,9000),3);assert.equal(Time.remainingAt(work,undefined,9000),3);
-  assert.equal(Time.remainingAt(work,1000,500),3);assert.equal(Time.remainingAt({...work,IsCompleted:true},1000,1000),0);
+  assert.equal(Time.remainingAt(work,1000,500),3);assert.equal(Time.remainingAt({...work,State:'Completed',IsCompleted:true},1000,1000),0);
 });
