@@ -13,12 +13,13 @@
    try{return MobiCliDecode(result.raw,result.exitCode);}catch(error){error.command=command;throw error;}
   }
  }
- let engine,transport,appInfo,agentVisible=false,pollingTimer;
+ let engine,transport,appInfo,agentVisible=false,pollingTimer,lastTraceStage='';
+ const traceStage=state=>{if(!state.preferences?.agentTraceEnabled){lastTraceStage='';return;}try{const selected={running:state.running,stage:state.stage,voice:state.preferences?.agentCharacter},key=JSON.stringify(selected);if(key===lastTraceStage)return;lastTraceStage=key;native.call('trace-events',{events:[{event:'engine-stage',clientAtMs:performance.timeOrigin+performance.now(),...selected}]}).catch(()=>{});}catch{}};
  const ready=(async()=>{
   const startup=await native.call('startup');transport=new NativeTransport(startup.preferences.cliPath);appInfo=startup.appInfo;
   engine=new Engine(transport,startup.preferences);
   if(engine.legacyExclusions.removedTasks){await native.call('backup-settings');await native.call('persist-state',{persistent:engine.persistent(),state:engine.snapshot()});}
-  engine.on('change',state=>{native.emit('state',state);native.call('persist-state',{persistent:engine.persistent(),state}).catch(notifyError);});
+  engine.on('change',state=>{traceStage(state);native.emit('state',state);native.call('persist-state',{persistent:engine.persistent(),state}).catch(notifyError);});
   engine.on('diagnostic',data=>native.call('diagnostic',data).catch(notifyError));
   engine.on('finished',async result=>{
    if(result.type==='error')await native.call('error-log',result).catch(notifyError);
@@ -35,13 +36,14 @@
  function catalog(){return {...engine.db,materialReferences:M.deferredMaterials};}
  async function showAgent(){
   const embedded=engine.preferences.agentSeparate===false;
-  agentVisible=embedded;native.emit('agent-visible',embedded);
+  native.call('trace-events',{events:[{event:'agent-visibility',visible:true,mode:embedded?'embedded':'separate',clientAtMs:performance.timeOrigin+performance.now()}]}).catch(()=>{});agentVisible=embedded;native.emit('agent-visible',embedded);
   await native.call('show-agent',{embedded,state:engine.snapshot(),onTop:engine.preferences.agentOnTop!==false,position:engine.preferences.agentPosition});
  }
- async function hideAgent(){if(engine.running)return;agentVisible=false;native.emit('agent-visible',false);await native.call('hide-agent');}
+ async function hideAgent(){if(engine.running)return;native.call('trace-events',{events:[{event:'agent-visibility',visible:false,clientAtMs:performance.timeOrigin+performance.now()}]}).catch(()=>{});agentVisible=false;native.emit('agent-visible',false);await native.call('hide-agent');}
  async function invoke(command,...args){
   await ready;const input=args[0];
   switch(command){
+   case 'agent-trace':return native.call('trace-events',{events:input});
    case 'bootstrap':return {state:engine.snapshot(),catalog:catalog(),cliPath:transport.file,smoke:false,agentVisible,appInfo,migrationNotice:D.exclusionMessage(engine.legacyExclusions)};
    case 'connect':await engine.connect();return {state:engine.snapshot(),catalog:catalog()};
    case 'add':return engine.add(input);
@@ -69,7 +71,7 @@
     const n=Number(input.limit),minutes=Number(input.cycleMinutes||0);
     if(!Number.isInteger(n)||n<1||n>100||!Number.isFinite(minutes)||minutes<0||(input.cycleTimeEnabled&&minutes<=0))throw new Error('가방 공간 기준과 SET 반복 시간을 확인해 주세요.');
     if(input.cliPath&&input.cliPath!==transport.file){await transport.setPath(input.cliPath);engine.connected=false;engine.wingsStale=true;}
-    Object.assign(engine.preferences,{cliPath:transport.file,processingRefillRounds:refill,strictOrder:input.strictOrder===true,bagCheck:input.bagCheck===true,limit:n,fantasyMembership:input.fantasyMembership!==false,retryInterrupted:input.retryInterrupted!==false,manualMaterialsEnabled:input.manualMaterialsEnabled===true,manualMaterials:[...new Set(manualMaterials)],cycleTimeEnabled:input.cycleTimeEnabled===true,cycleMinutes:minutes,agentSeparate:input.agentSeparate!==false,agentOnTop:input.agentOnTop!==false,agentCharacter:input.agentCharacter==='B'?'B':'A'});
+    Object.assign(engine.preferences,{cliPath:transport.file,processingRefillRounds:refill,strictOrder:input.strictOrder===true,bagCheck:input.bagCheck===true,limit:n,fantasyMembership:input.fantasyMembership!==false,retryInterrupted:input.retryInterrupted!==false,manualMaterialsEnabled:input.manualMaterialsEnabled===true,manualMaterials:[...new Set(manualMaterials)],cycleTimeEnabled:input.cycleTimeEnabled===true,cycleMinutes:minutes,agentTraceEnabled:input.agentTraceEnabled===true,agentSeparate:input.agentSeparate!==false,agentOnTop:input.agentOnTop!==false,agentCharacter:input.agentCharacter==='B'?'B':'A'});
     engine.publish();if(await native.call('agent-visible'))await showAgent();return;
    }
    case 'favorite':{

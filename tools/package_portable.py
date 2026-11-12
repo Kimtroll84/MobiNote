@@ -14,7 +14,7 @@ manifest=[]
 for file in sorted(out.rglob('*')):
     if not file.is_file():continue
     relative=file.relative_to(out)
-    if set(relative.parts)&{'runtime','user','test','third_party','outputs','__pycache__'} or file.name in {'settings.json','errors.log','diagnostics.log','MabinogiMobile_CLI.exe'}:raise SystemExit('Private/test file: '+str(relative))
+    if set(relative.parts)&{'runtime','user','test','third_party','outputs','__pycache__'} or file.name.startswith('agent-trace-') or file.name in {'settings.json','errors.log','diagnostics.log','MabinogiMobile_CLI.exe'}:raise SystemExit('Private/test file: '+str(relative))
     manifest.append({'file':relative.as_posix(),'bytes':file.stat().st_size,'sha256':hashlib.sha256(file.read_bytes()).hexdigest()})
 (out/'FILES.sha256.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2),encoding='utf-8')
 with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:

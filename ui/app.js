@@ -26,7 +26,7 @@ function presetValue(draft) {
   }) };
 }
 function presetDirty() { return JSON.stringify(presetValue(presetDraft)) !== JSON.stringify(presetValue(presetBaseline)); }
-function settingsValue() { return { cliPath:$('cli-path').value,processingRefillRounds:$('processing-refill').value,strictOrder:$('strict-order').checked,manualMaterialsEnabled:$('manual-materials-enabled').checked,manualMaterials:[...manualMaterialsDraft], bagCheck:$('bag-check').checked, limit:$('bag-limit').value, fantasyMembership:$('fantasy-membership').checked, retryInterrupted:$('retry-interrupted').checked, cycleTimeEnabled:$('cycle-time-enabled').checked, cycleMinutes:$('cycle-minutes').value, agentCharacter:$('agent-character').value, agentSeparate:$('agent-separate').checked, agentOnTop:$('agent-on-top').checked }; }
+function settingsValue() { return { cliPath:$('cli-path').value,processingRefillRounds:$('processing-refill').value,strictOrder:$('strict-order').checked,manualMaterialsEnabled:$('manual-materials-enabled').checked,manualMaterials:[...manualMaterialsDraft], bagCheck:$('bag-check').checked, limit:$('bag-limit').value, fantasyMembership:$('fantasy-membership').checked, retryInterrupted:$('retry-interrupted').checked, cycleTimeEnabled:$('cycle-time-enabled').checked, cycleMinutes:$('cycle-minutes').value, agentCharacter:$('agent-character').value, agentTraceEnabled:$('agent-trace-enabled').checked, agentSeparate:$('agent-separate').checked, agentOnTop:$('agent-on-top').checked }; }
 function settingsDirty() { return $('settings').open && JSON.stringify(settingsValue()) !== JSON.stringify(settingsBaseline); }
 function pickerDirty() { return $('picker').open && pickerMode === 'set' && JSON.stringify([...pickerSelection]) !== JSON.stringify(pickerBaseline); }
 function updateSaveButtons() {
@@ -256,11 +256,18 @@ function planStock(){
  const stock={...(state.stock||{})};for(const id of facilityPlan)for(const i of byId.get(id)?.ingredients||[])stock[i.name]=Math.max(0,(stock[i.name]||0)-i.required);return stock;
 }
 function facilitySlotMarkup(name,detail=false){
- const works=facilityWorks(name),pending=[...pendingFor(name)];const assigned=new Map();
+ const remaining={...(state.stock||{})};
+ const planned=facilityPlan.map(id=>{
+  const recipe=byId.get(id);
+  const missing=recipe?.ingredients.some(material=>(remaining[material.name]||0)<material.required)||false;
+  for(const material of recipe?.ingredients||[])remaining[material.name]=Math.max(0,(remaining[material.name]||0)-material.required);
+  return {id,recipe,missing};
+ });
+ const works=facilityWorks(name),pending=planned.filter(entry=>entry.recipe?.facility===name);const assigned=new Map();
  for(let i=0;i<7;i++)if(!works[i]&&pending.length)assigned.set(i,pending.shift());
  for(let i=0;i<7;i++)if(works[i]&&isDone(works[i])&&pending.length)assigned.set(i,pending.shift());
  return Array.from({length:7},(_,i)=>{
-  const w=works[i],id=assigned.get(i),recipe=id?byId.get(id):null,missing=recipe?.ingredients.some(n=>(state.stock?.[n.name]||0)<n.required);
+  const w=works[i],entry=assigned.get(i),id=entry?.id,recipe=entry?.recipe,missing=entry?.missing;
   const nameLabel=recipe?.name||w?.DisplayName||'',status=id?'등록 예정':w?isDone(w)?'완료':w.State==='NotStarted'?'대기':workRemaining(w)===0?'완료 확인 중':seconds(workRemaining(w)):'빈 슬롯';
   return `<button class="facility-slot ${id?'planned'+(missing?' needs-gather':''):w?isDone(w)?'complete':'working':'empty'}" data-facility="${escape(name)}" data-slot="${i}" ${id?`data-planned="${escape(id)}"`:''} title="${escape(nameLabel+' · '+status+(id&&w?' · 기존 완료품 수령 후 등록':''))}" ${state.running?'disabled':''}><span>${escape(nameLabel)||'＋'}</span>${nameLabel?`<small>${escape(detail?status:id?'예정':isDone(w)?'✓':'◷')}</small>`:''}</button>`;
  }).join('');
@@ -443,7 +450,7 @@ $('picker').oncancel=e=>{e.preventDefault();perform(closePicker);};
 $('settings-close').onclick=()=>perform(closeSettings);
 $('settings').oncancel=e=>{e.preventDefault();perform(closeSettings);};
 $ ('settings').querySelector('form').onsubmit=e=>{e.preventDefault();if(settingsDirty())perform(saveSettings);};
-$('settings-open').onclick = () => {manualMaterialsDraft=[...(state.preferences.manualMaterials||['마력 깃든 돌','반짝이는 이끼'])];$('manual-materials-enabled').checked=state.preferences.manualMaterialsEnabled===true;updateManualMaterialsCount(); $('processing-refill').value=state.preferences.processingRefillRounds??2;$('strict-order').checked=state.preferences.strictOrder===true; $('cli-path').value = cliPath;$('bag-check').checked = state.preferences.bagCheck;$('bag-limit').value = state.preferences.limit;$('fantasy-membership').checked = state.preferences.fantasyMembership !== false;$('cycle-time-enabled').checked = state.preferences.cycleTimeEnabled;$('cycle-minutes').value = state.preferences.cycleMinutes || '';$('cycle-minutes').disabled = !$('cycle-time-enabled').checked;$('agent-character').value=state.preferences.agentCharacter==='B'?'B':'A';$('agent-separate').checked=state.preferences.agentSeparate!==false;$('agent-on-top').checked=state.preferences.agentOnTop!==false;$('agent-on-top').disabled=!$('agent-separate').checked;settingsBaseline=settingsValue();$('settings').showModal();updateSaveButtons(); };
+$('settings-open').onclick = () => {manualMaterialsDraft=[...(state.preferences.manualMaterials||['마력 깃든 돌','반짝이는 이끼'])];$('manual-materials-enabled').checked=state.preferences.manualMaterialsEnabled===true;updateManualMaterialsCount(); $('processing-refill').value=state.preferences.processingRefillRounds??2;$('strict-order').checked=state.preferences.strictOrder===true; $('cli-path').value = cliPath;$('bag-check').checked = state.preferences.bagCheck;$('bag-limit').value = state.preferences.limit;$('fantasy-membership').checked = state.preferences.fantasyMembership !== false;$('cycle-time-enabled').checked = state.preferences.cycleTimeEnabled;$('cycle-minutes').value = state.preferences.cycleMinutes || '';$('cycle-minutes').disabled = !$('cycle-time-enabled').checked;$('agent-character').value=state.preferences.agentCharacter==='B'?'B':'A';$('agent-trace-enabled').checked=state.preferences.agentTraceEnabled===true;$('agent-separate').checked=state.preferences.agentSeparate!==false;$('agent-on-top').checked=state.preferences.agentOnTop!==false;$('agent-on-top').disabled=!$('agent-separate').checked;settingsBaseline=settingsValue();$('settings').showModal();updateSaveButtons(); };
 $('agent-separate').onchange=()=>{$('agent-on-top').disabled=!$('agent-separate').checked;updateSaveButtons();};
 $('cycle-time-enabled').onchange = () => { $('cycle-minutes').disabled = !$('cycle-time-enabled').checked;updateSaveButtons(); };
 $('choose-cli').onclick = () => perform(async () => { const file = await api('choose-cli');if (file) { $('cli-path').value = file;updateSaveButtons(); } });
@@ -528,7 +535,7 @@ window.mobi.onAgentVisible(showInternalAgent);
 window.mobi.onResult(result=>{if(state?.preferences.agentSeparate===false){if(agentFrameReady)relayAgent({type:'agent-result',result});else pendingAgentResult=result;}});
 window.addEventListener('message',async event=>{
   if(event.source!==$('agent-frame').contentWindow||event.data?.type!=='agent-call')return;
-  const {command,id,args=[]}=event.data;if(!['bootstrap','stop','hide-progress'].includes(command))return;
+  const {command,id,args=[]}=event.data;if(!['bootstrap','stop','hide-progress','agent-trace'].includes(command))return;
   try{const data=await api(command,...args);relayAgent({type:'agent-response',id,data:command==='bootstrap'?{state:data.state,smoke:data.smoke}:data});}
   catch(error){relayAgent({type:'agent-response',id,error:error.message});}
 });
@@ -561,3 +568,5 @@ $('manual-material-search').oninput=renderManualMaterialSelection;
 $('manual-material-apply').onclick=()=>{manualMaterialsDraft=[...manualMaterialSelection];updateManualMaterialsCount();$('manual-material-picker').close();updateSaveButtons();};
 async function closeManualMaterialPicker(){if(await guardEdit(()=>!$('manual-material-apply').disabled,()=>{manualMaterialsDraft=[...manualMaterialSelection];updateManualMaterialsCount();updateSaveButtons();},()=>{},'직접 준비할 재료 선택'))$('manual-material-picker').close();}
 $('manual-material-close').onclick=()=>perform(closeManualMaterialPicker);$('manual-material-picker').oncancel=e=>{e.preventDefault();perform(closeManualMaterialPicker);};
+
+$('agent-trace-enabled').onchange=updateSaveButtons;

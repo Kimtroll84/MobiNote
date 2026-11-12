@@ -49,17 +49,35 @@ namespace MobiNote {
   private readonly Dictionary<long,TaskCompletionSource<object>> pickerRequests=new Dictionary<long,TaskCompletionSource<object>>();
   private object currentState;private Dictionary<string,object> preferences,appInfo;
   private bool running,ready,allowClose,closing,rendererFailed;private long agentSequence;
+  private readonly string traceSession=Guid.NewGuid().ToString("N");private long traceSequence;
+  private readonly Stopwatch traceClock=Stopwatch.StartNew();private readonly List<string> traceBuffer=new List<string>();
+  private readonly Timer traceTimer=new Timer{Interval=1000};private Task traceWrite=Task.FromResult(0);
+  private void Trace(string eventName,object detail){
+   if(preferences==null||!BoolValue(preferences,"agentTraceEnabled"))return;
+   try{var row=new{schema=1,session=traceSession,seq=++traceSequence,at=DateTime.UtcNow.ToString("o"),appMs=traceClock.Elapsed.TotalMilliseconds,@event=eventName,detail=detail};traceBuffer.Add(json.Serialize(row));if(traceBuffer.Count>=200)FlushTrace();}catch{}
+  }
+  private void FlushTrace(){
+   if(traceBuffer.Count==0)return;string text=String.Join(Environment.NewLine,traceBuffer.ToArray())+Environment.NewLine;traceBuffer.Clear();string file=Path.Combine(root,"agent-trace-"+DateTime.Now.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)+".jsonl");
+   traceWrite=traceWrite.ContinueWith(previous=>{try{File.AppendAllText(file,text,new UTF8Encoding(false));}catch{}},TaskScheduler.Default);
+  }
+  private void ReceiveTrace(object value){
+   if(preferences==null||!BoolValue(preferences,"agentTraceEnabled"))return;
+   var rows=value as System.Collections.IEnumerable;if(rows==null)return;int count=0;
+   foreach(var entry in rows){if(++count>100)break;var row=Dict(entry);string name=TextValue(row,"event");if(name!="engine-stage"&&!name.StartsWith("agent-",StringComparison.Ordinal))continue;string encoded=json.Serialize(row);if(encoded.Length<=16000)Trace("renderer",row);}
+  }
+
   private readonly Timer positionTimer=new Timer{Interval=150};
   [DllImport("user32.dll")]private static extern bool ReleaseCapture();
   [DllImport("user32.dll")]private static extern IntPtr SendMessage(IntPtr hwnd,int msg,IntPtr wparam,IntPtr lparam);
   internal AppHost(string folder){
    root=folder;settingsFile=Path.Combine(root,"settings.json");Directory.CreateDirectory(Path.Combine(root,"user"));
-   Text="모비노트 0.9.9 · WebView2";StartPosition=FormStartPosition.CenterScreen;ClientSize=new Size(920,920);
+   Text="모비노트 0.9.10";StartPosition=FormStartPosition.CenterScreen;ClientSize=new Size(920,920);
    MinimumSize=new Size(Width,640);MaximumSize=new Size(Width,65535);MaximizeBox=false;AutoScaleMode=AutoScaleMode.Dpi;BackColor=ColorTranslator.FromHtml("#f6f9f1");
    Icon=new Icon(Path.Combine(root,"content/ui/assets/MobiNote_A.ico"));mainView.Dock=DockStyle.Fill;Controls.Add(mainView);
    positionTimer.Tick+=(sender,e)=>{positionTimer.Stop();if(agent!=null&&!agent.IsDisposed&&agent.Visible)Post(mainView,"agent-position",new{x=agent.Left,y=agent.Top});};
+   traceTimer.Tick+=(sender,e)=>FlushTrace();traceTimer.Start();
    pickerPositionTimer.Tick+=(sender,e)=>{pickerPositionTimer.Stop();SavePickerPosition();};
-   FormClosing+=OnClosing;FormClosed+=(sender,e)=>{closing=true;DestroyPicker();DestroyAgent();positionTimer.Dispose();pickerPositionTimer.Dispose();mainView.Dispose();};Shown+=async(sender,e)=>await Initialize();
+   FormClosing+=OnClosing;FormClosed+=(sender,e)=>{closing=true;DestroyPicker();DestroyAgent();positionTimer.Dispose();pickerPositionTimer.Dispose();mainView.Dispose();Trace("session-end",new{});traceTimer.Stop();traceTimer.Dispose();FlushTrace();try{traceWrite.Wait(1500);}catch{};};Shown+=async(sender,e)=>await Initialize();
   }
   private async Task Initialize(){
    try{
@@ -68,7 +86,7 @@ namespace MobiNote {
     int debugPort;if(Int32.TryParse(Environment.GetEnvironmentVariable("MOBINOTE_DEBUG_PORT"),out debugPort)&&debugPort>1024&&debugPort<65536)options.AdditionalBrowserArguments+=" --remote-debugging-address=127.0.0.1 --remote-debugging-port="+debugPort;
     environment=await CoreWebView2Environment.CreateAsync(null,Path.Combine(root,"user"),options);
     preferences=File.Exists(settingsFile)?Parse(File.ReadAllText(settingsFile,Encoding.UTF8)):new Dictionary<string,object>();
-    appInfo=Parse(File.ReadAllText(Path.Combine(root,"content/app-info.json"),Encoding.UTF8));appInfo["runtime"]="C# + WebView2";appInfo["webView2Version"]=runtimeVersion;
+    appInfo=Parse(File.ReadAllText(Path.Combine(root,"content/app-info.json"),Encoding.UTF8));appInfo["runtime"]="C# + WebView2";appInfo["webView2Version"]=runtimeVersion;Trace("session-start",new{version=Value(appInfo,"version"),purpose="agent-dialogue-recording"});
     await Configure(mainView,false);mainView.CoreWebView2.NavigationCompleted+=async(sender,e)=>{if(e.IsSuccess){await NormalizeSize(this,mainView,920,920,true);CenterToScreen();ready=true;}};mainView.CoreWebView2.Navigate("https://mobinote.example/ui/index.html");
    }catch(Exception error){Log("errors.log",new{eventName="startup",message=error.ToString()});MessageBox.Show(this,"앱을 시작하지 못했어요.\nMicrosoft Edge WebView2 Runtime과 .NET Framework 4.8이 필요해요.\n\n"+error.Message,"모비노트",MessageBoxButtons.OK,MessageBoxIcon.Error);allowClose=true;Close();}
   }
@@ -138,7 +156,8 @@ namespace MobiNote {
     case "validate-cli":ValidateCli(TextValue(body,"file"));return null;
     case "cli":return await RunCli(body);
     case "publish-state":UpdateState(Value(body,"state"));return null;
-    case "persist-state":preferences=Dict(Value(body,"persistent"));SaveSettings(preferences);UpdateState(Value(body,"state"));return null;
+    case "persist-state":preferences=Dict(Value(body,"persistent"));if(!BoolValue(preferences,"agentTraceEnabled"))traceBuffer.Clear();SaveSettings(preferences);UpdateState(Value(body,"state"));return null;
+    case "trace-events":ReceiveTrace(Value(body,"events"));return null;
     case "diagnostic":Log("diagnostics.log",body);return null;
     case "error-log":Log("errors.log",body);return null;
     case "choose-cli":
@@ -152,7 +171,7 @@ namespace MobiNote {
      long id=Convert.ToInt64(Value(body,"id"));TaskCompletionSource<object> completion;
      if(agentRequests.TryGetValue(id,out completion)){agentRequests.Remove(id);if(BoolValue(body,"ok"))completion.TrySetResult(Value(body,"data"));else completion.TrySetException(new Exception(TextValue(body,"error")));}return null;
     case "agent-request":
-     string command=TextValue(body,"command");if(command=="bootstrap")return new{state=currentState,smoke=false};
+     string command=TextValue(body,"command");if(command=="agent-trace"){var traceArgs=Value(body,"args") as System.Collections.IList;if(traceArgs!=null&&traceArgs.Count>0)ReceiveTrace(traceArgs[0]);return null;}if(command=="bootstrap")return new{state=currentState,smoke=false};
      if(command!="stop"&&command!="hide-progress")throw new Exception("허용되지 않은 작업 에이전트 요청이에요.");
      long requestId=++agentSequence;var response=new TaskCompletionSource<object>();agentRequests[requestId]=response;Post(mainView,"agent-call",new{id=requestId,command=command,args=Value(body,"args")});return await response.Task;
     case "drag-agent":if(popup&&agent!=null){ReleaseCapture();SendMessage(agent.Handle,0xA1,new IntPtr(2),IntPtr.Zero);}return null;
@@ -200,8 +219,8 @@ namespace MobiNote {
     Rectangle area=Screen.FromPoint(initial).WorkingArea;window.Location=new Point(Math.Max(area.Left,Math.Min(initial.X,area.Right-600)),Math.Max(area.Top,Math.Min(initial.Y,area.Bottom-230)));
     var handle=window.Handle;await Configure(view,true);var loaded=new TaskCompletionSource<bool>();EventHandler<CoreWebView2NavigationCompletedEventArgs> completed=null;
     completed=(sender,e)=>{view.CoreWebView2.NavigationCompleted-=completed;loaded.TrySetResult(e.IsSuccess);};view.CoreWebView2.NavigationCompleted+=completed;view.CoreWebView2.Navigate("https://mobinote.example/ui/progress.html");
-    if(!await loaded.Task)throw new Exception("작업 에이전트 화면을 불러오지 못했어요.");if(closing||agent!=window)return;window.Show();await NormalizeSize(window,view,600,230,false);await FocusAgentCanvas(view);Post(view,"state",currentState);
-   }else{agent.TopMost=BoolValue(options,"onTop");agent.Running=running;if(!agent.Visible)agent.Show();await FocusAgentCanvas(agentView);Post(agentView,"state",currentState);}
+    if(!await loaded.Task)throw new Exception("작업 에이전트 화면을 불러오지 못했어요.");if(closing||agent!=window)return;window.Show();Trace("agent-window",new{visible=true,mode="separate"});await NormalizeSize(window,view,600,230,false);await FocusAgentCanvas(view);Post(view,"state",currentState);
+   }else{agent.TopMost=BoolValue(options,"onTop");agent.Running=running;if(!agent.Visible)agent.Show();Trace("agent-window",new{visible=true,mode="separate"});await FocusAgentCanvas(agentView);Post(agentView,"state",currentState);}
   }
   private async Task FocusAgentCanvas(WebView2 view){if(view==null||view.IsDisposed||view.CoreWebView2==null)return;await view.CoreWebView2.ExecuteScriptAsync("(()=>{const main=document.querySelector('main');if(main){main.tabIndex=-1;main.focus({preventScroll:true});}})()");}
   private void UpdateState(object state){if(state==null)return;currentState=state;running=BoolValue(Dict(state),"running");if(running)HidePicker();if(agent!=null&&!agent.IsDisposed){agent.Running=running;Post(agentView,"state",state);}}
@@ -216,7 +235,7 @@ namespace MobiNote {
     }
    }catch(Exception error){Log("diagnostics.log",new{@event="window-size-check",message=error.Message});}
   }
-  private void DestroyAgent(){positionTimer.Stop();if(agent!=null&&!agent.IsDisposed){var old=agent;agent=null;agentView=null;try{preferences["agentPosition"]=new Dictionary<string,object>{{"x",old.Left},{"y",old.Top}};SaveSettings(preferences);Post(mainView,"agent-position",preferences["agentPosition"]);}catch(Exception error){Log("diagnostics.log",new{@event="agent-position-save",message=error.Message});}old.AllowClose=true;old.Close();old.Dispose();}}
+  private void DestroyAgent(){if(agent!=null&&!agent.IsDisposed)Trace("agent-window",new{visible=false,mode="separate"});positionTimer.Stop();if(agent!=null&&!agent.IsDisposed){var old=agent;agent=null;agentView=null;try{preferences["agentPosition"]=new Dictionary<string,object>{{"x",old.Left},{"y",old.Top}};SaveSettings(preferences);Post(mainView,"agent-position",preferences["agentPosition"]);}catch(Exception error){Log("diagnostics.log",new{@event="agent-position-save",message=error.Message});}old.AllowClose=true;old.Close();old.Dispose();}}
   private void SaveSettings(object value){string next=settingsFile+".next";File.WriteAllText(next,json.Serialize(value),new UTF8Encoding(false));if(File.Exists(settingsFile))File.Replace(next,settingsFile,null);else File.Move(next,settingsFile);}
   private void Log(string filename,object value){var row=value as Dictionary<string,object>??Parse(json.Serialize(value));row["at"]=DateTime.UtcNow.ToString("o");File.AppendAllText(Path.Combine(root,filename),json.Serialize(row)+Environment.NewLine,new UTF8Encoding(false));}
   private void Post(WebView2 view,string channel,object value){if(!closing&&!(rendererFailed&&view==mainView)&&view!=null&&!view.IsDisposed&&view.CoreWebView2!=null)view.CoreWebView2.PostWebMessageAsJson(json.Serialize(new{@event=channel,data=value}));}
@@ -229,6 +248,12 @@ namespace MobiNote {
   private static void ValidateCli(string file){if(!Path.IsPathRooted(file)||!String.Equals(Path.GetFileName(file),"MabinogiMobile_CLI.exe",StringComparison.OrdinalIgnoreCase)||!File.Exists(file))throw new NativeError("공식 CLI 파일을 선택해 주세요.","invalid_cli");}
   private async Task<string> ReadOutput(StreamReader reader){var text=new StringBuilder();var buffer=new char[8192];int count;while((count=await reader.ReadAsync(buffer,0,buffer.Length))>0){text.Append(buffer,0,count);if(text.Length>16000000)throw new NativeError("CLI 응답이 너무 큽니다.","response_too_large");}return text.ToString();}
   private async Task<object> RunCli(Dictionary<string,object> body){
+   long id=++agentSequence;string command=TextValue(body,"command");var argument=Dict(Value(body,"body"));var watch=Stopwatch.StartNew();
+   Trace("cli-request",new{id=id,command=command,item=TextValue(argument,"displayName"),craftCount=Value(argument,"craftCount")});
+   try{var result=await RunCliCore(body);Trace("cli-response",new{id=id,command=command,elapsedMs=watch.Elapsed.TotalMilliseconds,exitCode=result.GetType().GetProperty("exitCode").GetValue(result,null)});return result;}
+   catch(Exception error){Trace("cli-response",new{id=id,command=command,elapsedMs=watch.Elapsed.TotalMilliseconds,failed=true,errorType=error.GetType().Name});throw;}
+  }
+  private async Task<object> RunCliCore(Dictionary<string,object> body){
    string command=TextValue(body,"command"),file=TextValue(body,"file");if(!reads.Contains(command)&&!actions.Contains(command))throw new NativeError("지원하지 않는 CLI 명령이에요.","invalid_command",command);ValidateCli(file);
    object argument=Value(body,"body");string arguments=command;if(argument!=null)arguments+=" base64:"+Convert.ToBase64String(Encoding.UTF8.GetBytes(argument is string?(string)argument:json.Serialize(argument)));
    using(var process=new Process()){

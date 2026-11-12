@@ -8,3 +8,5 @@ settings.json*
 *.log
 __pycache__/
 *.py[cod]
+
+agent-trace-*.jsonl

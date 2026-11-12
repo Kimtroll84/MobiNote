@@ -7,7 +7,7 @@ sdk=root/'third_party/WebView2';managed=sdk/'lib/net462';content=out/'content';c
 shutil.copytree(root/'ui',content/'ui',dirs_exist_ok=True)
 for name in ['host-api.js','engine-host.js']:shutil.copy2(root/'web'/name,content/'ui'/name)
 (content/'ui/engine-bundle.js').write_text(bundle(root),encoding='utf-8')
-p=content/'ui/index.html';s=p.read_text(encoding='utf-8-sig').replace('<script src="work-time.js"','<script src="host-api.js" defer></script><script src="engine-bundle.js" defer></script><script src="engine-host.js" defer></script><script src="work-time.js"').replace('<title>모비노트 0.8.0</title>',f'<title>모비노트 {version} · WebView2</title>');p.write_text(s,encoding='utf-8')
+p=content/'ui/index.html';s=p.read_text(encoding='utf-8-sig').replace('<script src="work-time.js"','<script src="host-api.js" defer></script><script src="engine-bundle.js" defer></script><script src="engine-host.js" defer></script><script src="work-time.js"').replace('<title>모비노트 0.8.0</title>',f'<title>모비노트 {version}</title>');p.write_text(s,encoding='utf-8')
 p=content/'ui/progress.html';s=p.read_text(encoding='utf-8-sig').replace('<script src="agent-bridge.js"','<script src="host-api.js" defer></script><script src="agent-bridge.js"');p.write_text(s,encoding='utf-8')
 info=json.loads((root/'app-info.json').read_text(encoding='utf-8-sig'));(content/'app-info.json').write_text(json.dumps(info,ensure_ascii=False),encoding='utf-8')
 for name in ['Microsoft.Web.WebView2.Core.dll','Microsoft.Web.WebView2.WinForms.dll']:shutil.copy2(managed/name,out/name)
