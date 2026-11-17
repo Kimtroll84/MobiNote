@@ -131,7 +131,7 @@ const AgentDialogue={
     }
     if(stage.type==='done'){
       const progressed=stage.completed>0||(stage.results||[]).some(r=>r.count>0);
-      if(stage.held){image='asking';message=say('확인이 필요한 가공 시설이 있어요. 처리 결과를 확인해 주세요.','확인이 필요한 가공 시설이 있어. 처리 결과를 확인해 줘.');}
+      if(stage.held){image='asking';message=say('확인이 필요한 작업이 있어요. 처리 결과를 확인해 주세요.','확인이 필요한 작업이 있어. 처리 결과를 확인해 줘.');}
       else if(stage.skipped&&!progressed){image='asking';message=say('이번에는 진행한 작업이 없어요. 건너뛴 이유를 확인해 주세요.','이번엔 진행한 작업이 없어. 건너뛴 이유를 확인해 줘.');}
       else if(stage.skipped)message=say('진행할 수 있는 작업을 마쳤어요. 건너뛴 작업도 확인해 주세요.','할 수 있는 작업은 마쳤어! 건너뛴 것도 확인해 줘.');
       else if(stage.results?.some(r=>r.kind==='가공 등록')&&stage.results.every(r=>['가공 등록','가공 수령','채집'].includes(r.kind)))message=say('가공 등록을 마쳤어요.','가공 등록을 마쳤어!');

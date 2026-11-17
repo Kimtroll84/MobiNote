@@ -48,3 +48,48 @@ test('both agent voices explain automatic retry in Korean',()=>{
  require('../ui/agent-personality.js');
  for(const voice of ['A','B'])assert.match(globalThis.AgentDialogue.copy({type:'action-retry'},voice).message,/다시/);
 });
+
+for(const stillGathering of [false,true])test(`gather timeout reconciles progress before resending (active=${stillGathering})`,async()=>{
+ const {e,cli}=await setup(),action=cli.action.bind(cli),read=cli.read.bind(cli);
+ let starts=0,stops=0,observe=false;
+ cli.action=async(cmd,body)=>{
+   if(cmd==='stop_action')stops++;
+   if(cmd==='execute_gathering'&&++starts===1){
+     cli.stock.광석++;observe=stillGathering;
+     throw Object.assign(new Error('timeout'),{code:'timeout',body:{gained:1}});
+   }
+   return action(cmd,body);
+ };
+ cli.read=async(cmd,...args)=>{
+   if(cmd==='get_activity'&&observe){
+     observe=false;cli.stock.광석++;
+     return {Mode:{MainButtonState:'Stop'}};
+   }
+   return read(cmd,...args);
+ };
+ const task=e.add({kind:'gather',name:'광석',count:2});await e.run();
+ assert.equal(starts,stillGathering?1:2);
+ assert.equal(stops,0);assert.equal(task.completed,2);assert.equal(e.terminal.type,'done');
+});
+test('registration timeout with an observed new slot is counted once',async()=>{
+ const {e,cli}=await setup(),action=cli.action.bind(cli);
+ cli.action=async(cmd,body)=>{
+   const result=await action(cmd,body);
+   if(cmd==='execute_altering')throw Object.assign(new Error('timeout'),{code:'timeout'});
+   return result;
+ };
+ const task=e.add({kind:'materials',name:'A',count:1});await e.run();
+ assert.equal(cli.calls.filter(c=>c.command==='execute_altering').length,1);
+ assert.equal(task.status,'done');assert.equal(task.completed,1);
+});
+test('unconfirmed craft timeout holds the affected job and continues the queue',async()=>{
+ const {e,cli}=await setup(),action=cli.action.bind(cli);
+ let crafts=0;
+ cli.action=async(cmd,body)=>{
+   if(cmd==='execute_crafting'&&++crafts===1)throw Object.assign(new Error('timeout'),{code:'timeout'});
+   return action(cmd,body);
+ };
+ const held=e.add({kind:'craft',name:'키트',count:1}),next=e.add({kind:'craft',name:'키트',count:1});
+ await e.run();
+ assert.equal(held.status,'held');assert.equal(next.status,'done');assert.equal(crafts,2);
+});

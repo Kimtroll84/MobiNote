@@ -25,7 +25,7 @@ for(const voice of ['A','B'])test(`transient observation retry changes footer wh
 test('B stop and partial completion never concatenate repeated stock phrases',()=>{
  const stopping=D.copy({type:'stopping',text:'중단을 요청했어요. 멈췄는지 확인하고 있어요.'},'B');assert.doesNotMatch(stopping.message,/알았어|다시 눌러/);assert.equal(stopping.message,'작업을 멈추고 있어.');
  const skipped=D.copy({type:'done',skipped:1,completed:1,text:'대기줄의 작업을 모두 마쳤어요.'},'B');assert.doesNotMatch(skipped.message,/모두/);assert.match(skipped.detail,/건너뜀 1개/);
- const held=D.copy({type:'done',held:2,text:'확인이 필요한 시설 2개 작업을 보류하고 나머지 작업을 마쳤어요.'},'B');assert.match(held.message,/확인이 필요한 가공 시설/);assert.match(held.detail,/보류 2개/);
+ const held=D.copy({type:'done',held:2,text:'확인이 필요한 시설 2개 작업을 보류하고 나머지 작업을 마쳤어요.'},'B');assert.match(held.message,/확인이 필요한 작업/);assert.match(held.detail,/보류 2개/);
 });
 test('simultaneous stop clicks share a single in-flight stop request',async()=>{
  const {e,cli}=await fixture();let resolve,requests=0;e.running=true;e.activeCommand='execute_crafting';
